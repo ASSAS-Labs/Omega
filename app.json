@@ -1,9 +1,10 @@
 {
   "expo": {
-    "name": "counterapp",
+    "name": "Omega",
     "slug": "counterapp",
     "version": "1.0.0",
     "orientation": "portrait",
+    "icon": "./assets/appicon.jpg",
     "userInterfaceStyle": "dark",
     "ios": {
       "supportsTablet": true,
