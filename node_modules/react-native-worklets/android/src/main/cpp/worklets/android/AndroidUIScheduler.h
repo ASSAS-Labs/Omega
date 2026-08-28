@@ -1,0 +1,38 @@
+#pragma once
+
+#include <worklets/Tools/UIScheduler.h>
+
+#include <fbjni/fbjni.h>
+#include <jsi/jsi.h>
+
+#include <memory>
+
+namespace worklets {
+
+using namespace facebook;
+using namespace worklets;
+
+class AndroidUIScheduler : public jni::HybridClass<AndroidUIScheduler> {
+ public:
+  static auto constexpr kJavaDescriptor = "Lcom/swmansion/worklets/AndroidUIScheduler;";
+  static jni::local_ref<jhybriddata> initHybrid(
+      jni::alias_ref<jhybridobject> jThis); // NOLINT //(performance-unnecessary-value-param)
+  static void registerNatives();
+
+  std::shared_ptr<UIScheduler> getUIScheduler() {
+    return uiScheduler_;
+  }
+
+ private:
+  friend HybridBase;
+
+  void triggerUI();
+
+  void invalidate();
+
+  std::shared_ptr<UIScheduler> uiScheduler_;
+
+  explicit AndroidUIScheduler(const jni::alias_ref<AndroidUIScheduler::jhybridobject> &jThis);
+};
+
+} // namespace worklets

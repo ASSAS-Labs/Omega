@@ -1,0 +1,127 @@
+/* eslint-disable @typescript-eslint/no-unsafe-function-type */
+'use strict';
+
+// This file works by accident - currently Builder Bob doesn't move `.d.ts` files to output types.
+// If it ever breaks, we should address it so we'd not pollute the user's global namespace.
+import type { reportFatalRemoteError } from './debug/errors';
+import type { CustomSerializableUnpacker } from './memory/customSerializableUnpacker';
+import type { RemoteFunctionUnpacker } from './memory/remoteFunctionUnpacker';
+import type { makeShareableCloneOnUIRecursive } from './memory/serializable';
+import type { ShareableGuestUnpacker } from './memory/shareableGuestUnpacker';
+import type { ShareableHostUnpacker } from './memory/shareableHostUnpacker';
+import type { SynchronizableUnpacker } from './memory/synchronizableUnpacker';
+import type { CustomSerializationRegistry } from './memory/types';
+import type { Queue } from './runLoop/workletRuntime/taskQueue';
+import type { ValueUnpacker } from './types';
+import type { WorkletsModuleProxy } from './WorkletsModule/workletsModuleProxy';
+
+declare global {
+  /** The only runtime-available require method is `__r` defined by Metro. */
+  var __r: ((moduleId: number) => Record<string, unknown>) &
+    Record<string, unknown>;
+
+  /**
+   * The name of the current runtime, used in debugging.
+   *
+   * - "RN" for the RN Runtime.
+   * - "UI" for the UI Runtime.
+   * - A custom name for Worker Runtimes.
+   */
+  var __RUNTIME_NAME: string;
+
+  var _toString: (value: unknown) => string;
+  var __workletsModuleProxy: WorkletsModuleProxy;
+  var _WORKLETS_BUNDLE_MODE_ENABLED: boolean | undefined;
+  var _WORKLETS_VERSION_CPP: string | undefined;
+  var _WORKLETS_VERSION_JS: string | undefined;
+  var _createSerializableString: (value: string) => FlatSerializableRef<string>;
+  var _createSerializableNumber: (value: number) => FlatSerializableRef<number>;
+  var _createSerializableBoolean: (
+    value: boolean
+  ) => FlatSerializableRef<boolean>;
+  var _createSerializableBigInt: (value: bigint) => FlatSerializableRef<bigint>;
+  var _createSerializableUndefined: () => FlatSerializableRef<undefined>;
+  var _createSerializableNull: () => FlatSerializableRef<null>;
+  var _createSerializableObject: <T extends object>(
+    value: T,
+    shouldRetainRemote: boolean,
+    nativeStateSource?: object
+  ) => FlatSerializableRef<T>;
+  var _createSerializableHostObject: <T extends object>(
+    value: T
+  ) => FlatSerializableRef<T>;
+  var _createSerializableWorklet: (
+    value: object,
+    shouldPersistRemote: boolean
+  ) => FlatSerializableRef<object>;
+  var _createSerializableArray: (
+    value: unknown[]
+  ) => FlatSerializableRef<unknown[]>;
+  var _createSerializableInitializer: (
+    value: object
+  ) => FlatSerializableRef<object>;
+  var _createSerializableSynchronizable: (
+    value: object
+  ) => FlatShareableRef<object>;
+  var __serializer: typeof makeShareableCloneOnUIRecursive;
+  var __callMicrotasks: () => void;
+  /** Available only on the UI Runtime */
+  var __nativeRequestAnimationFrame: (
+    callback: (timestamp: number) => void
+  ) => void;
+  /** Available only on RN Runtime */
+  var __reportFatalRemoteError: typeof reportFatalRemoteError | undefined;
+  var __valueUnpacker: ValueUnpacker;
+  var __synchronizableUnpacker: SynchronizableUnpacker;
+  var __customSerializationRegistry: CustomSerializationRegistry;
+  var __customSerializableUnpacker: CustomSerializableUnpacker;
+  var __remoteFunctionUnpacker: RemoteFunctionUnpacker;
+  /**
+   * @deprecated Kept for backwards compatibility. Remove it after support for
+   *   Reanimated 4.3 is dropped. Reanimated uses it to handle event updates
+   *   synchronously.
+   */
+  var __flushAnimationFrame: (timestamp: number) => void;
+  var __frameTimestamp: number | undefined;
+  var _log: (value: unknown) => void;
+  var _startProfiling: (meanHzFreq?: number) => void;
+  var _stopProfiling: () => string;
+  var _beginSection: (name: string) => void;
+  var _endSection: () => void;
+  var _getAnimationTimestamp: () => number;
+  var _scheduleOnRuntime: (
+    runtime: WorkletRuntime,
+    worklet: SerializableRef<() => void>
+  ) => void;
+  /**
+   * @deprecated Kept for backwards compatibility. Remove it after support for
+   *   Reanimated 4.3 is dropped. Reanimated uses it to handle event updates
+   *   synchronously.
+   */
+  var _microtaskQueueFinalizers: (() => void)[];
+  var _scheduleTimeoutCallback: (delay: number, handlerId: number) => void;
+  var __runTimeoutCallback: (handlerId: number) => void;
+  var _taskQueue: Queue;
+  /** Only in Debug builds. */
+  var __hasNativeState: (value: object) => boolean;
+  /** Only in Debug builds. */
+  var __isHostObject: (value: object) => boolean;
+  var __shareableHostUnpacker: ShareableHostUnpacker<unknown, unknown, unknown>;
+  var __shareableGuestUnpacker: ShareableGuestUnpacker<
+    unknown,
+    unknown,
+    unknown
+  >;
+  /** Only in Bundle Mode on Worklet Runtimes. */
+  var TurboModules: Map<string, unknown>;
+  /**
+   * Native logging hook installed by React Native on the RN Runtime and
+   * propagated to Worklet Runtimes in Bundle Mode. Level values match RN's
+   * `LOG_LEVELS`: 0 = trace, 1 = info, 2 = warn, 3 = error.
+   */
+  var nativeLoggingHook: ((message: string, level: number) => void) | undefined;
+  interface NodeRequire {
+    resolveWeak(id: string): number;
+    getModules(): Map<number, unknown>;
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "name": "@expo/json-file",
+  "version": "11.0.1",
+  "description": "A module for reading, writing, and manipulating JSON files",
+  "main": "build/JsonFile.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/expo/expo.git",
+    "directory": "packages/@expo/json-file"
+  },
+  "keywords": [
+    "json"
+  ],
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/expo/expo/issues"
+  },
+  "homepage": "https://github.com/expo/expo/tree/main/packages/@expo/json-file#readme",
+  "files": [
+    "build"
+  ],
+  "dependencies": {
+    "@babel/code-frame": "^7.20.0",
+    "json5": "^2.2.3"
+  },
+  "devDependencies": {
+    "@types/babel__code-frame": "^7.27.0",
+    "@types/json5": "^2.2.0",
+    "@types/node": "^22.14.0",
+    "memfs": "^3.2.0",
+    "expo-module-scripts": "56.0.3"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "gitHead": "b9503d06b8e130abfca1bc16f671dbefb41ad709",
+  "scripts": {
+    "build": "expo-module tsc",
+    "clean": "expo-module clean",
+    "lint": "expo-module lint",
+    "test": "expo-module test",
+    "typecheck": "expo-module typecheck",
+    "watch": "expo-module tsc --watch --preserveWatchOutput"
+  }
+}

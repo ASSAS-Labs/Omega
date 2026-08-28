@@ -1,0 +1,16 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["SQLiteModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.sqlite.SQLiteModule"],
+    "shouldUsePublicationScriptPath": "android/shouldUsePublication.groovy",
+    "publication": {
+      "groupId": "host.exp.exponent",
+      "artifactId": "expo.modules.sqlite",
+      "version": "16.0.10",
+      "repository": "local-maven-repo"
+    }
+  }
+}

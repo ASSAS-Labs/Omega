@@ -1,0 +1,1 @@
+{"version":3,"names":["isSynchronizable","value","__synchronizableRef"],"sourceRoot":"../../../src","sources":["memory/isSynchronizable.ts"],"mappings":"AAAA,YAAY;;AAIZ,OAAO,SAASA,gBAAgBA,CAC9BC,KAAc,EACmB;EACjC,SAAS;;EACT,OACE,OAAOA,KAAK,KAAK,QAAQ,IACzBA,KAAK,KAAK,IAAI,IACd,CAAC,CAAEA,KAAK,CAA6BC,mBAAmB;AAE5D","ignoreList":[]}

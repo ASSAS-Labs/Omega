@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "counterapp",
+    "slug": "counterapp",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.gymtracker.app"
+    },
+    "android": {
+      "package": "com.counterapp.tracker"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font"
+    ],
+    "scheme": "gymtracker",
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "8289af09-42e6-4c60-9cec-de12005ed2b8"
+      }
+    }
+  }
+}

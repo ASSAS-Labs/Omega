@@ -1,0 +1,1 @@
+{"version":3,"file":"synchronizable.native.d.ts","sourceRoot":"","sources":["../../../src/memory/synchronizable.native.ts"],"names":[],"mappings":"AAIA,OAAO,KAAK,EAAE,cAAc,EAAE,MAAM,SAAS,CAAC;AAE9C,wBAAgB,oBAAoB,CAAC,MAAM,GAAG,OAAO,EACnD,YAAY,EAAE,MAAM,GACnB,cAAc,CAAC,MAAM,CAAC,CAQxB"}

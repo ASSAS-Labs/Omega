@@ -1,0 +1,1 @@
+{"version":3,"names":["serializableMappingCache","set","_serializable","_serializableRef","get","_key"],"sourceRoot":"../../../src","sources":["memory/serializableMappingCache.ts"],"mappings":"AAAA,YAAY;;AAIZ,OAAO,MAAMA,wBAAwB,GAAG;EACtCC,GAAGA,CAACC,aAAqB,EAAEC,gBAAkC,EAAQ;IACnE;EAAA,CACD;EACDC,GAAGA,CAACC,IAAY,EAAqC;IACnD,OAAO,IAAI;EACb;AACF,CAAC","ignoreList":[]}

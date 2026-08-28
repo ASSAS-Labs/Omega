@@ -1,0 +1,1 @@
+{"version":3,"file":"bundleUnpacker.native.d.ts","sourceRoot":"","sources":["../../../src/memory/bundleUnpacker.native.ts"],"names":[],"mappings":"AAGA,OAAO,KAAK,EAAkB,eAAe,EAAE,MAAM,UAAU,CAAC;AAIhE,wBAAgB,mBAAmB,CAAC,cAAc,EAAE,cAAc,GAAG,OAAO,CAkB3E;AA+BD,UAAU,cAAe,SAAQ,eAAe;IAC9C,MAAM,EAAE,OAAO,CAAC;CACjB"}

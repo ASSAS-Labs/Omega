@@ -1,0 +1,19 @@
+export { isBundleModeEnabled } from './debug/bundleMode';
+export { toggleSlowAnimationsOnUIRuntime } from './debug/slowAnimations';
+export { callMicrotasks, isShareableRef, makeShareable, type MakeShareableClone, makeShareableCloneOnUIRecursive, makeShareableCloneRecursive, shareableMappingCache, type ShareableRef, } from './deprecated';
+export { getDynamicFeatureFlag, getStaticFeatureFlag, setDynamicFeatureFlag, } from './featureFlags/featureFlags';
+export { isShareable } from './memory/isShareable';
+export { isSynchronizable } from './memory/isSynchronizable';
+export { createSerializable, isSerializableRef, registerCustomSerializable, } from './memory/serializable';
+export { serializableMappingCache } from './memory/serializableMappingCache';
+export { createShareable } from './memory/shareable';
+export { createSynchronizable } from './memory/synchronizable';
+export type { RegistrationData, SerializableRef, Shareable, ShareableConfig, ShareableGuest, ShareableGuestDecorator, ShareableGuestMeta, ShareableGuestProps, ShareableHost, ShareableHostDecorator, ShareableHostMeta, ShareableHostProps, Synchronizable, SynchronizableRef, } from './memory/types';
+export { getRuntimeKind, isRNRuntime, isUIRuntime, isWorkerRuntime, isWorkletRuntime, RuntimeKind, } from './runtimeKind';
+export { createWorkletRuntime, getUIRuntimeHolder, getUISchedulerHolder, runOnRuntime, runOnRuntimeAsync, runOnRuntimeAsyncWithId, runOnRuntimeSync, runOnRuntimeSyncWithId, scheduleOnRuntime, scheduleOnRuntimeWithId, UIRuntimeId, } from './runtimes';
+export { executeOnUIRuntimeSync, runOnJS, runOnUI, runOnUIAsync, runOnUISync, scheduleOnRN, scheduleOnUI, } from './threads';
+export type { WorkletFunction, WorkletRuntime, WorkletStackDetails, } from './types';
+export { isWorkletFunction } from './workletFunction';
+export { WorkletsModule } from './WorkletsModule/NativeWorklets';
+export type { IWorkletsModule, WorkletsModuleProxy, } from './WorkletsModule/workletsModuleProxy';
+//# sourceMappingURL=index.d.ts.map

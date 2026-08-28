@@ -1,0 +1,1 @@
+{"version":3,"file":"serializableMappingCache.d.ts","sourceRoot":"","sources":["../../../src/memory/serializableMappingCache.ts"],"names":[],"mappings":"AAEA,OAAO,KAAK,EAAE,eAAe,EAAE,MAAM,SAAS,CAAC;AAE/C,eAAO,MAAM,wBAAwB;uBAChB,MAAM,qBAAqB,eAAe,GAAG,IAAI;cAG1D,MAAM,GAAG,MAAM,GAAG,MAAM,GAAG,eAAe;CAGrD,CAAC"}
