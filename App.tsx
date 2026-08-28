@@ -205,7 +205,7 @@ export default function App() {
     return (
       <View style={styles.loadingContainer}>
         <StatusBar style="light" />
-        <Text style={styles.loadingText}>APEX GYM</Text>
+        <Text style={styles.loadingText}>OMEGA GYM</Text>
       </View>
     );
   }

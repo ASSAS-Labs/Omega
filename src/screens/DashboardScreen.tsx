@@ -127,7 +127,7 @@ export default function DashboardScreen({ onStartWorkout, onNavigateSplitSetup }
       >
         {/* Top App Header */}
         <View style={styles.header}>
-          <Text style={styles.appTitle}>APEX</Text>
+          <Text style={styles.appTitle}>OMEGA</Text>
           <View style={styles.streakBadge}>
             <Ionicons name="flame" size={18} color={COLORS.accentAmber} />
             <Text style={styles.streakText}>{streak} Day Streak</Text>
@@ -331,14 +331,15 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.xl,
+    paddingTop: 40,
     paddingBottom: SPACING.xxl,
+    flexGrow: 1,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: SPACING.md,
+    marginBottom: 20,
   },
   appTitle: {
     fontSize: 28,
@@ -368,7 +369,7 @@ const styles = StyleSheet.create({
     padding: SPACING.md,
     borderWidth: 1,
     borderColor: COLORS.border,
-    marginBottom: SPACING.md,
+    marginBottom: 20,
   },
   calendarHeader: {
     flexDirection: 'row',
@@ -447,7 +448,7 @@ const styles = StyleSheet.create({
     padding: SPACING.md,
     borderWidth: 1,
     borderColor: COLORS.border,
-    marginBottom: SPACING.md,
+    marginBottom: 20,
     overflow: 'hidden',
   },
   routineHeaderRow: {
@@ -628,6 +629,7 @@ const styles = StyleSheet.create({
     padding: SPACING.md,
     borderWidth: 1,
     borderColor: COLORS.borderSubtle,
+    marginBottom: 20,
   },
   summaryTitle: {
     fontSize: 14,
