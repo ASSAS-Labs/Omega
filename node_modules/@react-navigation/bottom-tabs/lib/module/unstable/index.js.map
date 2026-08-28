@@ -1,1 +1,0 @@
-{"version":3,"names":["createNativeBottomTabNavigator","createNativeBottomTabScreen","NativeBottomTabView"],"sourceRoot":"../../../src","sources":["unstable/index.tsx"],"mappings":";;AAAA;AACA;AACA;AACA,SACEA,8BAA8B,EAC9BC,2BAA2B,QAEtB,kCAAkC;;AAEzC;AACA;AACA;AACA,SAASC,mBAAmB,QAAQ,uBAAuB;;AAE3D;AACA;AACA","ignoreList":[]}

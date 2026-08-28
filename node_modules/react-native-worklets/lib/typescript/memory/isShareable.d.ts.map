@@ -1,1 +1,0 @@
-{"version":3,"file":"isShareable.d.ts","sourceRoot":"","sources":["../../../src/memory/isShareable.ts"],"names":[],"mappings":"AAEA,OAAO,KAAK,EAAE,SAAS,EAAE,MAAM,SAAS,CAAC;AAEzC,wBAAgB,WAAW,CACzB,MAAM,GAAG,OAAO,EAChB,cAAc,GAAG,OAAO,EACxB,eAAe,GAAG,OAAO,EACzB,KAAK,EAAE,OAAO,GAAG,KAAK,IAAI,SAAS,CAAC,MAAM,EAAE,cAAc,EAAE,eAAe,CAAC,CAO7E"}

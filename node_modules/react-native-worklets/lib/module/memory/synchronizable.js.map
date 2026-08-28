@@ -1,1 +1,0 @@
-{"version":3,"names":["createSynchronizable","_value","Error"],"sourceRoot":"../../../src","sources":["memory/synchronizable.ts"],"mappings":"AAAA,YAAY;;AAIZ,OAAO,SAASA,oBAAoBA,CAClCC,MAAc,EACU;EACxB,MAAM,IAAIC,KAAK,CAAC,4DAA4D,CAAC;AAC/E","ignoreList":[]}

@@ -1,1 +1,0 @@
-{"version":3,"names":["WorkletsModule","toggleSlowAnimationsOnUIRuntime"],"sourceRoot":"../../../src","sources":["debug/slowAnimations.native.ts"],"mappings":"AAAA,YAAY;;AACZ,SAASA,cAAc,QAAQ,kCAAkC;;AAEjE;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA,OAAO,SAASC,+BAA+BA,CAAA,EAAY;EACzD,OAAOD,cAAc,CAACC,+BAA+B,CAAC,CAAC;AACzD","ignoreList":[]}

@@ -1,1 +1,0 @@
-{"version":3,"names":["IS_JEST","globalThis","jest","process","env","NODE_ENV"],"sourceRoot":"../../src","sources":["platformChecker.ts"],"mappings":"AAAA,YAAY;;AAEZ,OAAO,MAAMA,OAAgB,GAC3B,OAAOC,UAAU,CAACC,IAAI,KAAK,WAAW,IAAIC,OAAO,CAACC,GAAG,CAACC,QAAQ,KAAK,MAAM","ignoreList":[]}

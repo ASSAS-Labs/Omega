@@ -1,1 +1,0 @@
-{"version":3,"file":"createNativeBottomTabNavigator.d.ts","sourceRoot":"","sources":["../../../../src/unstable/createNativeBottomTabNavigator.tsx"],"names":[],"mappings":"AAAA,eAAO,MAAM,8BAA8B,EAAE,cAAc,4CAAyC,EAAE,8BAGnG,CAAC;AAEJ,eAAO,MAAM,2BAA2B,EAAE,cAAc,4CAAyC,EAAE,2BAGhG,CAAC;AAEJ,MAAM,MAAM,sBAAsB,GAChC,OAAO,4CAAyC,EAAE,sBAAsB,CAAC"}

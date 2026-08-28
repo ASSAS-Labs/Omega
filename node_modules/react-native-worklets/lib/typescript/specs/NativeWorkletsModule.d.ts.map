@@ -1,1 +1,0 @@
-{"version":3,"file":"NativeWorkletsModule.d.ts","sourceRoot":"","sources":["../../../src/specs/NativeWorkletsModule.ts"],"names":[],"mappings":"AAEA,OAAO,EAAE,KAAK,WAAW,EAAuB,MAAM,cAAc,CAAC;AAErE,MAAM,WAAW,IAAK,SAAQ,WAAW;IACvC,kBAAkB,EAAE,CAAC,iBAAiB,EAAE,OAAO,KAAK,OAAO,CAAC;IAC5D,+BAA+B,EAAE,MAAM,OAAO,CAAC;IAC/C,KAAK,EAAE,MAAM,OAAO,CAAC;CACtB;;AAED,wBAA+D"}

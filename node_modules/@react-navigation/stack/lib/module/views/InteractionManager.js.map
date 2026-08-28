@@ -1,1 +1,0 @@
-{"version":3,"names":["ReactNative","InteractionManager","e"],"sourceRoot":"../../../src","sources":["views/InteractionManager.tsx"],"mappings":";;AAAA;AACA,OAAO,KAAKA,WAAW,MAAM,cAAc;AAO3C,IAAIC,kBAAsD;AAE1D,IAAI;EACFA,kBAAkB,GAAGD,WAAW,CAACC,kBAAkB;AACrD,CAAC,CAAC,OAAOC,CAAC,EAAE;EACV;EACA;AAAA;AAGF,SAASD,kBAAkB","ignoreList":[]}

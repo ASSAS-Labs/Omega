@@ -1,1 +1,0 @@
-{"version":3,"file":"synchronizableUnpacker.native.d.ts","sourceRoot":"","sources":["../../../src/memory/synchronizableUnpacker.native.ts"],"names":[],"mappings":"AAKA,OAAO,EAAE,KAAK,cAAc,EAAE,KAAK,iBAAiB,EAAE,MAAM,SAAS,CAAC;AAEtE,wBAAgB,6BAA6B,SAqD5C;AAED,MAAM,MAAM,sBAAsB,GAAG,CAAC,MAAM,EAC1C,iBAAiB,EAAE,iBAAiB,CAAC,MAAM,CAAC,KACzC,cAAc,CAAC,MAAM,CAAC,CAAC"}

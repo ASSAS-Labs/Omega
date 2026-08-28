@@ -1,1 +1,0 @@
-{"version":3,"file":"InteractionManager.d.ts","sourceRoot":"","sources":["../../../../src/views/InteractionManager.tsx"],"names":[],"mappings":"AAGA,KAAK,sBAAsB,GAAG;IAC5B,uBAAuB,IAAI,MAAM,CAAC;IAClC,sBAAsB,CAAC,MAAM,EAAE,MAAM,GAAG,IAAI,CAAC;CAC9C,CAAC;AAEF,QAAA,IAAI,kBAAkB,EAAE,sBAAsB,GAAG,SAAS,CAAC;AAS3D,OAAO,EAAE,kBAAkB,EAAE,CAAC"}
