@@ -7,8 +7,8 @@ on:
     branches: [ main, master ]
 
 jobs:
-  validate-and-typecheck:
-    name: Lint & Typecheck
+  validate-and-test:
+    name: Lint, Typecheck & Test
     runs-on: ubuntu-latest
 
     steps:
@@ -26,3 +26,6 @@ jobs:
 
       - name: Run TypeScript type check
         run: npx tsc --noEmit
+
+      - name: Run Unit Tests
+        run: npm test -- --ci --watchAll=false

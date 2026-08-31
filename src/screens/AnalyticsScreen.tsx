@@ -15,6 +15,8 @@ import { COLORS, SPACING, RADIUS } from '../theme/colors';
 import { Exercise } from '../types';
 import * as db from '../services/database';
 import { LineChart } from 'react-native-gifted-charts';
+import { convertWeight, formatWeight, roundWeight } from '../services/weightUnitPrefs';
+import { useWeightUnit } from '../hooks/useWeightUnit';
 
 interface ProgressPoint {
   date: string;
@@ -28,12 +30,15 @@ const CHART_WIDTH = SCREEN_WIDTH - SPACING.lg * 2 - SPACING.md * 2 - 2;
 const FULLSCREEN_CHART_WIDTH = SCREEN_WIDTH - 40;
 
 export default function AnalyticsScreen() {
+  const weightUnit = useWeightUnit();
   const [trackedExercises, setTrackedExercises] = useState<Exercise[]>([]);
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
   const [progressData, setProgressData] = useState<ProgressPoint[]>([]);
   const [timeRange, setTimeRange] = useState<'session' | 'week' | 'month'>('week');
   const [metric, setMetric] = useState<'maxWeight' | 'totalVolume'>('maxWeight');
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [bestSet, setBestSet] = useState<{ weight: number; reps: number; e1rm: number } | null>(null);
+  const [volumeTrend, setVolumeTrend] = useState({ recentVolume: 0, priorVolume: 0 });
   const [complianceStats, setComplianceStats] = useState({
     totalDays: 30,
     scheduledDays: 0,
@@ -67,7 +72,13 @@ export default function AnalyticsScreen() {
       setComplianceStats(stats);
 
       if (selectedExercise) {
-        const rawData = await db.getExerciseProgress(selectedExercise.id);
+        const [rawData, best, trend] = await Promise.all([
+          db.getExerciseProgress(selectedExercise.id),
+          db.getExerciseBestSet(selectedExercise.id),
+          db.getExerciseVolumeTrend(selectedExercise.id),
+        ]);
+        setBestSet(best);
+        setVolumeTrend(trend);
 
         // Filter or group based on time range if needed
         let filtered = rawData;
@@ -79,6 +90,8 @@ export default function AnalyticsScreen() {
         setProgressData(filtered);
       } else {
         setProgressData([]);
+        setBestSet(null);
+        setVolumeTrend({ recentVolume: 0, priorVolume: 0 });
       }
     } catch (err) {
       console.error('Error loading analytics:', err);
@@ -90,13 +103,26 @@ export default function AnalyticsScreen() {
       ? Math.round((complianceStats.completedDays / complianceStats.scheduledDays) * 100)
       : 0;
 
-  // Prepare data for Gifted Charts
-  const chartData = progressData.map((d, idx) => ({
-    value: metric === 'maxWeight' ? d.maxWeight : d.totalVolume,
-    label: d.date,
-    color: COLORS.accent,
-    dataPointText: metric === 'maxWeight' ? `${d.maxWeight}kg` : `${d.totalVolume}`,
-  }));
+  // 4-week volume trend percentage (+, -, or 0 when no prior baseline)
+  const trendPct =
+    volumeTrend.priorVolume > 0
+      ? Math.round(((volumeTrend.recentVolume - volumeTrend.priorVolume) / volumeTrend.priorVolume) * 100)
+      : volumeTrend.recentVolume > 0
+      ? 100
+      : 0;
+
+  // Prepare data for Gifted Charts (values converted to the active unit so
+  // the y-axis, grid labels, and data point text all reflect it)
+  const chartData = progressData.map((d, idx) => {
+    const rawValue = metric === 'maxWeight' ? d.maxWeight : d.totalVolume;
+    const value = roundWeight(convertWeight(rawValue, weightUnit));
+    return {
+      value,
+      label: d.date,
+      color: COLORS.accent,
+      dataPointText: metric === 'maxWeight' ? `${value}${weightUnit}` : `${value}`,
+    };
+  });
 
   return (
     <SafeAreaView style={styles.container}>
@@ -272,17 +298,42 @@ export default function AnalyticsScreen() {
                 {selectedExercise?.name || 'Exercise Progress'}
               </Text>
               <Text style={styles.fullscreenSubtitle}>
-                {metric === 'maxWeight' ? 'Max Weight' : 'Total Volume'} ·{' '}
-                {timeRange.toUpperCase()} VIEW
+                {metric === 'maxWeight'
+                  ? `Max Weight (${weightUnit.toUpperCase()})`
+                  : 'Total Volume'}{' '}
+                · {timeRange.toUpperCase()} VIEW
               </Text>
             </View>
-            <TouchableOpacity
-              style={styles.fullscreenCloseBtn}
-              onPress={() => setIsFullscreen(false)}
-              accessibilityLabel="Close fullscreen chart"
-            >
-              <Ionicons name="close" size={22} color={COLORS.textPrimary} />
-            </TouchableOpacity>
+          </View>
+
+          {/* All-Time Peak insight card */}
+          <View style={styles.insightRow}>
+            <View style={styles.insightCard}>
+              <Text style={styles.insightLabel}>BEST PERFORMANCE</Text>
+              <Text style={styles.insightValue}>
+                {bestSet ? formatWeight(bestSet.weight, weightUnit) : '—'}
+              </Text>
+              <Text style={styles.insightSub}>
+                {bestSet
+                  ? `Est. 1RM: ${formatWeight(bestSet.e1rm, weightUnit)} (${bestSet.reps} reps)`
+                  : 'No logged sets yet'}
+              </Text>
+            </View>
+            <View style={styles.insightCard}>
+              <Text style={styles.insightLabel}>4-WEEK TREND</Text>
+              <Text
+                style={[
+                  styles.insightValue,
+                  trendPct > 0 ? styles.insightPositive : trendPct < 0 ? styles.insightNegative : null,
+                ]}
+              >
+                {trendPct === 0 ? '—' : `${trendPct > 0 ? '+' : ''}${trendPct}%`}
+              </Text>
+              <Text style={styles.insightSub}>
+                Volume: {roundWeight(convertWeight(volumeTrend.recentVolume, weightUnit))} vs{' '}
+                {roundWeight(convertWeight(volumeTrend.priorVolume, weightUnit))} {weightUnit}
+              </Text>
+            </View>
           </View>
 
           {progressData.length === 0 ? (
@@ -295,7 +346,7 @@ export default function AnalyticsScreen() {
               <LineChart
                 data={chartData}
                 width={FULLSCREEN_CHART_WIDTH}
-                height={340}
+                height={300}
                 spacing={Math.min(
                   100,
                   Math.max(50, (FULLSCREEN_CHART_WIDTH - 60) / Math.max(chartData.length, 1))
@@ -561,7 +612,6 @@ const styles = StyleSheet.create({
   fullscreenHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
     borderBottomWidth: 1,
@@ -569,7 +619,6 @@ const styles = StyleSheet.create({
   },
   fullscreenHeaderText: {
     flex: 1,
-    marginRight: SPACING.md,
   },
   fullscreenTitle: {
     fontSize: 18,
@@ -581,15 +630,42 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
     marginTop: 2,
   },
-  fullscreenCloseBtn: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: RADIUS.md,
+  insightRow: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.md,
+  },
+  insightCard: {
+    flex: 1,
     backgroundColor: COLORS.bgCard,
+    borderRadius: RADIUS.lg,
     borderWidth: 1,
     borderColor: COLORS.border,
+    padding: SPACING.md,
+  },
+  insightLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    color: COLORS.textMuted,
+  },
+  insightValue: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: COLORS.textPrimary,
+    marginTop: 4,
+  },
+  insightPositive: {
+    color: COLORS.accentGreen,
+  },
+  insightNegative: {
+    color: COLORS.accentRed,
+  },
+  insightSub: {
+    fontSize: 11,
+    color: COLORS.textMuted,
+    marginTop: 2,
   },
   fullscreenChartWrap: {
     flex: 1,
@@ -606,7 +682,7 @@ const styles = StyleSheet.create({
   fullscreenFooter: {
     alignItems: 'flex-end',
     paddingHorizontal: SPACING.lg,
-    paddingBottom: SPACING.xl,
+    paddingBottom: 48,
   },
   minimizeBtn: {
     flexDirection: 'row',

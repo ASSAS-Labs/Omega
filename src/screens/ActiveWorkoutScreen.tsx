@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -20,6 +20,20 @@ import { COLORS, SPACING, RADIUS } from '../theme/colors';
 import { useAppStore } from '../store/useAppStore';
 import { Exercise, WorkoutStackParamList } from '../types';
 import * as db from '../services/database';
+import {
+  clearWorkoutDraft,
+  getWorkoutDraft,
+  saveWorkoutDraft,
+} from '../services/workoutDraftService';
+import { cancelRestTimerNotification } from '../services/notificationService';
+import RestTimerModal from '../components/RestTimerModal';
+import {
+  convertWeight,
+  formatWeight,
+  roundWeight,
+  toKg,
+} from '../services/weightUnitPrefs';
+import { useWeightUnit } from '../hooks/useWeightUnit';
 
 // Enable smooth layout animations on Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -47,10 +61,12 @@ export default function ActiveWorkoutScreen() {
   const navigation = useNavigation<StackNavigationProp<WorkoutStackParamList>>();
   const route = useRoute<RouteProp<WorkoutStackParamList, 'ActiveWorkout'>>();
   const { date, day } = route.params;
+  const weightUnit = useWeightUnit();
   // 'template' = Workout tab routine builder (no data input)
   // 'logging'  = Dashboard Start Workout (weight/reps entry)
   const mode = route.params.mode ?? 'logging';
   const isTemplateMode = mode === 'template';
+  const isResume = route.params.resume === '1';
 
   const { weeklySplit, muscleGroups, allExercises } = useAppStore();
 
@@ -66,6 +82,17 @@ export default function ActiveWorkoutScreen() {
 
   // Exercise library picker state (template mode only)
   const [pickerVisible, setPickerVisible] = useState(false);
+
+  // Rest timer modal state (logging mode only)
+  const [restTimerVisible, setRestTimerVisible] = useState(false);
+
+  // Crash-recovery draft: timestamp when the logging session started
+  const draftStartedAtRef = useRef(Date.now());
+  const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Set once the session has been finalized ("Finish & Save Workout") so the
+  // unmount-time flush can never resurrect the draft we just deleted.
+  const finishedRef = useRef(false);
 
   // Hide the parent tab bar while logging a session; restore it on exit
   useEffect(() => {
@@ -83,38 +110,116 @@ export default function ActiveWorkoutScreen() {
     };
   }, [navigation]);
 
-  // Header right actions: edit/delete toggle ("-") + add exercise ("+")
-  // Only in template mode (Workout tab); hidden in strict logging mode
+  // Header right actions:
+  // template mode  -> "-" delete toggle + "+" library picker
+  // logging mode   -> rest timer button
   useEffect(() => {
-    if (!isTemplateMode) {
-      navigation.setOptions({ headerRight: undefined });
-      return;
+    if (isTemplateMode) {
+      navigation.setOptions({
+        headerRight: () => (
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={[styles.headerIconButton, isEditMode && styles.headerIconButtonActive]}
+              onPress={() => setIsEditMode((v) => !v)}
+              accessibilityLabel="Toggle delete mode"
+            >
+              <Ionicons
+                name="remove"
+                size={24}
+                color={isEditMode ? COLORS.accentRed : COLORS.textPrimary}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.headerIconButton}
+              onPress={() => setPickerVisible(true)}
+              accessibilityLabel="Add exercise from library"
+            >
+              <Ionicons name="add" size={24} color={COLORS.accent} />
+            </TouchableOpacity>
+          </View>
+        ),
+      });
+    } else {
+      navigation.setOptions({
+        headerRight: () => (
+          // Same wrapper as template mode so the timer button gets a
+          // balanced 16px margin from the right edge instead of sitting
+          // flush against the screen border.
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={styles.headerIconButton}
+              onPress={() => setRestTimerVisible(true)}
+              accessibilityLabel="Open rest timer"
+            >
+              <Ionicons name="timer-outline" size={24} color={COLORS.textPrimary} />
+            </TouchableOpacity>
+          </View>
+        ),
+      });
     }
-    navigation.setOptions({
-      headerRight: () => (
-        <View style={styles.headerActions}>
-          <TouchableOpacity
-            style={[styles.headerIconButton, isEditMode && styles.headerIconButtonActive]}
-            onPress={() => setIsEditMode((v) => !v)}
-            accessibilityLabel="Toggle delete mode"
-          >
-            <Ionicons
-              name="remove"
-              size={24}
-              color={isEditMode ? COLORS.accentRed : COLORS.textPrimary}
-            />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.headerIconButton}
-            onPress={() => setPickerVisible(true)}
-            accessibilityLabel="Add exercise from library"
-          >
-            <Ionicons name="add" size={24} color={COLORS.accent} />
-          </TouchableOpacity>
-        </View>
-      ),
-    });
   }, [navigation, isEditMode, isTemplateMode]);
+
+  // Crash recovery: auto-save the logging session (debounced) as the user types.
+  // Only persists once at least one set contains actual input.
+  useEffect(() => {
+    if (isTemplateMode) return;
+    const hasInput = exerciseLogs.some((ex) =>
+      ex.sets.some((s) => s.weight.trim() !== '' || s.reps.trim() !== '')
+    );
+    if (!hasInput) return;
+    if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+    draftTimerRef.current = setTimeout(() => {
+      saveWorkoutDraft({
+        date,
+        day,
+        dayName: route.params.dayName,
+        startedAt: draftStartedAtRef.current,
+        exerciseLogs,
+      });
+    }, 500);
+    return () => {
+      if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+    };
+  }, [exerciseLogs, isTemplateMode, date, day, route.params.dayName]);
+
+  // Ref mirror of the live session so an unmount-time flush can persist the
+  // very latest input even if the 500ms debounce had not fired yet.
+  const exerciseLogsRef = useRef(exerciseLogs);
+  useEffect(() => {
+    exerciseLogsRef.current = exerciseLogs;
+  }, [exerciseLogs]);
+
+  const flushDraftIfNeeded = () => {
+    if (isTemplateMode || finishedRef.current) return;
+    const logs = exerciseLogsRef.current;
+    const hasInput = logs.some((ex) =>
+      ex.sets.some((s) => s.weight.trim() !== '' || s.reps.trim() !== '')
+    );
+    if (!hasInput) return;
+    saveWorkoutDraft({
+      date,
+      day,
+      dayName: route.params.dayName,
+      startedAt: draftStartedAtRef.current,
+      exerciseLogs: logs,
+    });
+  };
+
+  // Navigating back (without "Finish & Save") must keep the draft intact so
+  // the parent screen can instantly offer Resume / Discard.
+  useEffect(() => {
+    return () => {
+      if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+      flushDraftIfNeeded();
+    };
+  }, [date, day, route.params.dayName]);
+
+  // Cancel any rest-timer notification when leaving the screen
+  useEffect(() => {
+    return () => {
+      cancelRestTimerNotification();
+    };
+  }, []);
 
   useEffect(() => {
     loadWorkoutData();
@@ -157,8 +262,32 @@ export default function ActiveWorkoutScreen() {
     setTemplateItems(items);
   };
 
-  // Logging mode: load the day's template (or split) with blank set rows ready for input
+  // Logging mode: load the day's template (or split) with blank set rows ready for input.
+  // When opened with `resume=1`, restore the exact crash-recovery draft instead.
   const loadLoggingData = async () => {
+    if (isResume) {
+      const draft = await getWorkoutDraft();
+      if (draft) {
+        draftStartedAtRef.current = draft.startedAt;
+        setExerciseLogs(
+          draft.exerciseLogs.map((d) => ({
+            exercise: {
+              id: d.exercise.id,
+              name: d.exercise.name,
+              muscleGroup: d.exercise.muscleGroup,
+            },
+            previousSets: d.previousSets,
+            sets: d.sets.map((s) => ({ setNumber: s.setNumber, weight: s.weight, reps: s.reps })),
+          }))
+        );
+        return;
+      }
+    }
+
+    // A fresh session supersedes any stale draft
+    await clearWorkoutDraft();
+    draftStartedAtRef.current = Date.now();
+
     // 1. Check if workout is already logged for this date
     const existingLog = await db.getWorkoutLogForDate(date);
     const template = await db.getDayTemplate(day);
@@ -193,7 +322,8 @@ export default function ActiveWorkoutScreen() {
         if (exSets.length > 0) {
           initialSets = exSets.map((s) => ({
             setNumber: s.setNumber,
-            weight: s.weight.toString(),
+            // Stored weights are canonical kg; pre-fill in the active unit
+            weight: String(roundWeight(convertWeight(s.weight, weightUnit))),
             reps: s.reps.toString(),
           }));
         }
@@ -335,7 +465,8 @@ export default function ActiveWorkoutScreen() {
 
     for (const exLog of exerciseLogs) {
       for (const s of exLog.sets) {
-        const weightNum = parseFloat(s.weight) || 0;
+        // Input is in the active unit; convert to canonical kg for storage
+        const weightNum = toKg(parseFloat(s.weight) || 0, weightUnit);
         const repsNum = parseInt(s.reps, 10) || 0;
 
         if (repsNum > 0) {
@@ -356,8 +487,19 @@ export default function ActiveWorkoutScreen() {
 
     try {
       await db.saveWorkoutLog(date, day, '', setsToSave);
-      // Persist + refresh dashboard, reset the stack to the Days Overview,
-      // then return to the Dashboard tab
+      // Finalize: mark the session as finished BEFORE purging the draft so
+      // the unmount-time flush (which runs when we navigate away) can never
+      // re-write the draft we are about to delete. Then stop the rest-timer
+      // notification, permanently erase the crash-recovery draft (verified
+      // inside clearWorkoutDraft), and only then reset the stack to the Days
+      // Overview and return to the Dashboard tab.
+      finishedRef.current = true;
+      if (draftTimerRef.current) {
+        clearTimeout(draftTimerRef.current);
+        draftTimerRef.current = null;
+      }
+      await clearWorkoutDraft();
+      await cancelRestTimerNotification();
       useAppStore.getState().notifyWorkoutSaved();
       navigation.reset({ index: 0, routes: [{ name: 'WorkoutDays' }] });
       navigation.getParent()?.navigate('Dashboard' as never);
@@ -473,7 +615,9 @@ export default function ActiveWorkoutScreen() {
                 <Ionicons name="time-outline" size={14} color={COLORS.textMuted} />
                 <Text style={styles.prevSessionText}>
                   {exLog.previousSets.length > 0
-                    ? `Prev: ${exLog.previousSets.map((p) => `${p.weight}kg × ${p.reps}`).join(' | ')}`
+                    ? `Prev: ${exLog.previousSets
+                        .map((p) => `${formatWeight(p.weight, weightUnit)} × ${p.reps}`)
+                        .join(' | ')}`
                     : 'Previous session: No historical data recorded'}
                 </Text>
               </View>
@@ -482,7 +626,9 @@ export default function ActiveWorkoutScreen() {
               <View style={styles.tableHeaderRow}>
                 <Text style={[styles.colHeader, styles.colSet]}>SET</Text>
                 <Text style={[styles.colHeader, styles.colPrev]}>PREVIOUS</Text>
-                <Text style={[styles.colHeader, styles.colInput]}>WEIGHT (KG)</Text>
+                <Text style={[styles.colHeader, styles.colInput]}>
+                  WEIGHT ({weightUnit.toUpperCase()})
+                </Text>
                 <Text style={[styles.colHeader, styles.colInput]}>REPS</Text>
                 <View style={styles.colDelete} />
               </View>
@@ -490,7 +636,9 @@ export default function ActiveWorkoutScreen() {
               {/* Set Input Rows */}
               {exLog.sets.map((setRow, setIndex) => {
                 const prevSet = exLog.previousSets.find((p) => p.setNumber === setRow.setNumber);
-                const prevText = prevSet ? `${prevSet.weight}kg × ${prevSet.reps}` : '-';
+                const prevText = prevSet
+                  ? `${formatWeight(prevSet.weight, weightUnit)} × ${prevSet.reps}`
+                  : '-';
 
                 return (
                   <View key={setRow.setNumber} style={styles.setRow}>
@@ -503,7 +651,11 @@ export default function ActiveWorkoutScreen() {
                       <TextInput
                         style={styles.numericInput}
                         keyboardType="numeric"
-                        placeholder={prevSet ? prevSet.weight.toString() : '0'}
+                        placeholder={
+                          prevSet
+                            ? String(roundWeight(convertWeight(prevSet.weight, weightUnit)))
+                            : '0'
+                        }
                         placeholderTextColor={COLORS.textMuted}
                         value={setRow.weight}
                         onChangeText={(val) => handleUpdateSet(exIndex, setIndex, 'weight', val)}
@@ -606,8 +758,7 @@ export default function ActiveWorkoutScreen() {
         animationType="fade"
         transparent
         onRequestClose={handleCancelRemoveExercise}
-      >
-        <View style={styles.confirmOverlay}>
+      >        <View style={styles.confirmOverlay}>
           <View style={styles.confirmDialog}>
             <View style={styles.confirmIconCircle}>
               <Ionicons name="trash-outline" size={22} color={COLORS.accentRed} />
@@ -639,6 +790,14 @@ export default function ActiveWorkoutScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Rest Timer Modal (logging mode) */}
+      {!isTemplateMode && (
+        <RestTimerModal
+          visible={restTimerVisible}
+          onClose={() => setRestTimerVisible(false)}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -859,7 +1018,10 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.bgPrimary,
     borderTopWidth: 1,
     borderTopColor: COLORS.borderSubtle,
-    padding: SPACING.lg,
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.lg,
+    paddingBottom: 36,
+    marginBottom: 16,
   },
   finishButton: {
     backgroundColor: COLORS.accent,

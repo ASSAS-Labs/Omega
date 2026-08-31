@@ -1,6 +1,11 @@
-import React, { useEffect } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, LogBox } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+
+// Expo Go (SDK 53/54) prints a harmless "Android Push notifications ..."
+// warning whenever expo-notifications is imported for local-only use. This
+// app never touches remote push tokens, so the warning is safe to silence.
+LogBox.ignoreLogs(['expo-notifications: Android Push notifications']);
 import {
   NavigationContainer,
   DefaultTheme,
@@ -11,6 +16,10 @@ import {
   BottomTabScreenProps,
 } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
+import {
+  createNativeStackNavigator,
+  NativeStackNavigationProp,
+} from '@react-navigation/native-stack';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from './src/theme/colors';
@@ -20,11 +29,26 @@ import ActiveWorkoutScreen from './src/screens/ActiveWorkoutScreen';
 import AnalyticsScreen from './src/screens/AnalyticsScreen';
 import SplitSetupScreen from './src/screens/SplitSetupScreen';
 import ExercisesScreen from './src/screens/ExercisesScreen';
+import SettingsScreen from './src/screens/SettingsScreen';
 import WorkoutDaysScreen from './src/screens/WorkoutDaysScreen';
-import { DayOfWeek, RootTabParamList, WorkoutStackParamList } from './src/types';
+import { initNotifications } from './src/services/notificationService';
+import {
+  hasStoredWeightUnit,
+  loadWeightUnit,
+  saveWeightUnit,
+  WeightUnit,
+} from './src/services/weightUnitPrefs';
+import WeightUnitPromptModal from './src/components/WeightUnitPromptModal';
+import {
+  DayOfWeek,
+  RootStackParamList,
+  RootTabParamList,
+  WorkoutStackParamList,
+} from './src/types';
 
 const Tab = createBottomTabNavigator<RootTabParamList>();
 const WorkoutStack = createStackNavigator<WorkoutStackParamList>();
+const RootStack = createNativeStackNavigator<RootStackParamList>();
 
 // Minimalist dark theme applied to the whole navigation tree
 const AppTheme: Theme = {
@@ -93,7 +117,19 @@ function DashboardTab({ navigation }: BottomTabScreenProps<RootTabParamList, 'Da
           params: { date: dateStr, day: dayOfWeek, dayName, mode: 'logging' },
         });
       }}
-      onNavigateSplitSetup={() => navigation.navigate('Split Setup')}
+      onResumeWorkout={(dateStr: string, dayOfWeek: DayOfWeek) => {
+        // Resume an unfinalized draft with its exact state
+        navigation.navigate('Workout', {
+          screen: 'ActiveWorkout',
+          params: { date: dateStr, day: dayOfWeek, mode: 'logging', resume: '1' },
+        });
+      }}
+      onNavigateSplitSetup={() => {
+        // Push the Split Configuration screen on the root stack (from Settings hub)
+        navigation
+          .getParent<NativeStackNavigationProp<RootStackParamList>>()
+          ?.navigate('SplitSetup');
+      }}
     />
   );
 }
@@ -176,10 +212,10 @@ function AppNavigator() {
         }}
       />
       <Tab.Screen
-        name="Split Setup"
-        component={SplitSetupScreen}
+        name="Settings"
+        component={SettingsScreen}
         options={{
-          title: 'Split Setup',
+          title: 'Settings',
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
               name={focused ? 'settings' : 'settings-outline'}
@@ -193,13 +229,57 @@ function AppNavigator() {
   );
 }
 
+// ---------------- Root Stack (Tabs + pushed screens) ----------------
+
+function RootNavigator() {
+  return (
+    <RootStack.Navigator
+      screenOptions={{
+        headerStyle: { backgroundColor: COLORS.bgPrimary },
+        headerTintColor: COLORS.textPrimary,
+        headerTitleStyle: { fontWeight: '700' },
+        headerShadowVisible: false,
+        contentStyle: { backgroundColor: COLORS.bgPrimary },
+      }}
+    >
+      <RootStack.Screen name="Tabs" component={AppNavigator} options={{ headerShown: false }} />
+      <RootStack.Screen
+        name="SplitSetup"
+        component={SplitSetupScreen}
+        options={{ title: 'Routine Split' }}
+      />
+    </RootStack.Navigator>
+  );
+}
+
 export default function App() {
   const { initStore, isLoading } = useAppStore();
+  const [unitPromptVisible, setUnitPromptVisible] = useState(false);
 
   // Initialize the local SQLite database on startup
   useEffect(() => {
     initStore();
   }, []);
+
+  // Initialize the rest-timer notification channel (safe in Expo Go)
+  useEffect(() => {
+    initNotifications();
+  }, []);
+
+  // First-launch onboarding: if the user has never chosen a weight unit,
+  // ask them to pick KG or LBS before they start logging.
+  useEffect(() => {
+    (async () => {
+      await loadWeightUnit();
+      const stored = await hasStoredWeightUnit();
+      if (!stored) setUnitPromptVisible(true);
+    })();
+  }, []);
+
+  const handleSelectWeightUnit = (unit: WeightUnit) => {
+    saveWeightUnit(unit);
+    setUnitPromptVisible(false);
+  };
 
   if (isLoading) {
     return (
@@ -214,8 +294,12 @@ export default function App() {
     <GestureHandlerRootView style={styles.container}>
       <NavigationContainer theme={AppTheme}>
         <StatusBar style="light" />
-        <AppNavigator />
+        <RootNavigator />
       </NavigationContainer>
+      <WeightUnitPromptModal
+        visible={unitPromptVisible}
+        onSelect={handleSelectWeightUnit}
+      />
     </GestureHandlerRootView>
   );
 }

@@ -22,6 +22,10 @@ npm-debug.*
 yarn-debug.*
 yarn-error.*
 
+# Testing
+coverage/
+
 # OS
 .DS_Store
 Thumbs.db
+

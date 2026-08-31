@@ -9,12 +9,14 @@ import {
   Alert,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, SPACING, RADIUS } from '../theme/colors';
 import { useAppStore } from '../store/useAppStore';
 import { DayOfWeek } from '../types';
 import { DAYS_OF_WEEK } from '../utils/dateUtils';
 
 export default function SplitSetupScreen() {
+  const insets = useSafeAreaInsets();
   const { weeklySplit, muscleGroups, updateSplit, isLoading } = useAppStore();
   const [localSplit, setLocalSplit] = useState<Record<DayOfWeek, string[]>>(weeklySplit);
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>('Monday');
@@ -56,6 +58,8 @@ export default function SplitSetupScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Top header / back button are rendered by the navigator; only the
+          subtitle lives in screen content (no duplicate "Routine Split" title). */}
       <View style={styles.header}>
         <Text style={styles.subtitle}>Define target muscle groups for each day</Text>
       </View>
@@ -111,7 +115,15 @@ export default function SplitSetupScreen() {
       </View>
 
       {/* Muscle Group List Toggle */}
-      <ScrollView style={styles.mgScroll} contentContainerStyle={styles.mgListContent}>
+      <ScrollView
+        style={styles.mgScroll}
+        contentContainerStyle={[
+          styles.mgListContent,
+          // Keep the last rows (e.g. Triceps / Shoulders) fully scrollable
+          // above the Android home/back navigation bar.
+          { paddingBottom: insets.bottom + 30 },
+        ]}
+      >
         {muscleGroups.map((mg) => {
           const isSelected = activeDayMuscleGroups.includes(mg.id);
           return (
@@ -149,13 +161,14 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.lg,
+    // Sit the subtitle immediately below the navigator header / back button
+    paddingTop: SPACING.sm,
     paddingBottom: SPACING.md,
   },
   subtitle: {
     fontSize: 14,
     color: COLORS.textSecondary,
-    marginTop: 4,
+    marginTop: 0,
   },
   daySelectorContainer: {
     borderBottomWidth: 1,
@@ -223,7 +236,6 @@ const styles = StyleSheet.create({
   },
   mgListContent: {
     paddingHorizontal: SPACING.lg,
-    paddingBottom: 32,
     gap: 10,
   },
   mgCard: {

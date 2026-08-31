@@ -531,6 +531,62 @@ export async function getExerciseProgress(exerciseId: string): Promise<{ date: s
   return rows;
 }
 
+// All-time best set: highest estimated 1RM (Epley: weight * (1 + reps/30))
+export async function getExerciseBestSet(
+  exerciseId: string
+): Promise<{ weight: number; reps: number; e1rm: number } | null> {
+  const db = await getDB();
+  const rows = await db.getAllAsync<{ weight: number; reps: number }>(
+    `SELECT ws.weight, ws.reps
+     FROM workout_sets ws
+     JOIN workout_logs wl ON ws.workout_log_id = wl.id
+     WHERE ws.exercise_id = ? AND wl.completed = 1 AND ws.reps > 0 AND ws.weight > 0
+     ORDER BY (ws.weight * (1 + ws.reps / 30.0)) DESC
+     LIMIT 1;`,
+    [exerciseId]
+  );
+  if (rows.length === 0) return null;
+  const { weight, reps } = rows[0];
+  return { weight, reps, e1rm: Math.round(weight * (1 + reps / 30)) };
+}
+
+// 4-week trend: total volume of the last 28 days vs the 28 days before that
+export async function getExerciseVolumeTrend(
+  exerciseId: string
+): Promise<{ recentVolume: number; priorVolume: number }> {
+  const db = await getDB();
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 28);
+  const priorCutoff = new Date();
+  priorCutoff.setDate(priorCutoff.getDate() - 56);
+  const today = new Date().toISOString().split('T')[0];
+  const cutoffStr = cutoff.toISOString().split('T')[0];
+  const priorCutoffStr = priorCutoff.toISOString().split('T')[0];
+
+  const rows = await db.getAllAsync<{ volume: number; bucket: string }>(
+    `SELECT
+       CASE
+         WHEN wl.date >= ? THEN 'recent'
+         WHEN wl.date >= ? THEN 'prior'
+         ELSE 'old'
+       END as bucket,
+       SUM(ws.weight * ws.reps) as volume
+     FROM workout_sets ws
+     JOIN workout_logs wl ON ws.workout_log_id = wl.id
+     WHERE ws.exercise_id = ? AND wl.completed = 1 AND wl.date <= ?
+     GROUP BY bucket;`,
+    [cutoffStr, priorCutoffStr, exerciseId, today]
+  );
+
+  let recentVolume = 0;
+  let priorVolume = 0;
+  for (const r of rows) {
+    if (r.bucket === 'recent') recentVolume = r.volume ?? 0;
+    else if (r.bucket === 'prior') priorVolume = r.volume ?? 0;
+  }
+  return { recentVolume, priorVolume };
+}
+
 export async function getComplianceStats(daysLimit: number = 30): Promise<{ totalDays: number; scheduledDays: number; completedDays: number; streak: number }> {
   const db = await getDB();
   const split = await getWeeklySplit();

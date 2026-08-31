@@ -10,6 +10,7 @@ export type WorkoutStackParamList = {
     day: DayOfWeek;
     dayName?: string;
     mode?: 'template' | 'logging';
+    resume?: '1';
   };
 };
 
@@ -18,7 +19,12 @@ export type RootTabParamList = {
   Workout: NavigatorScreenParams<WorkoutStackParamList> | undefined;
   Exercises: undefined;
   Analytics: undefined;
-  'Split Setup': undefined;
+  Settings: undefined;
+};
+
+export type RootStackParamList = {
+  Tabs: NavigatorScreenParams<RootTabParamList> | undefined;
+  SplitSetup: undefined;
 };
 
 export interface MuscleGroup {

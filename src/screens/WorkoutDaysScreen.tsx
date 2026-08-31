@@ -12,6 +12,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { COLORS, SPACING, RADIUS } from '../theme/colors';
 import { useAppStore } from '../store/useAppStore';
+import WorkoutDraftBanner from '../components/WorkoutDraftBanner';
 import { DayOfWeek, WorkoutStackParamList } from '../types';
 import { DAYS_OF_WEEK, getTodayDayOfWeek } from '../utils/dateUtils';
 import * as db from '../services/database';
@@ -69,9 +70,22 @@ export default function WorkoutDaysScreen() {
     });
   };
 
+  const handleResumeDraft = (draft: { date: string; day: DayOfWeek; dayName?: string }) => {
+    navigation.navigate('ActiveWorkout', {
+      date: draft.date,
+      day: draft.day,
+      dayName: draft.dayName,
+      mode: 'logging',
+      resume: '1',
+    });
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+        {/* Crash-recovery banner: unfinalized workout draft */}
+        <WorkoutDraftBanner onResume={handleResumeDraft} />
+
         {!hasAnyTrainingDay && (
           <View style={styles.emptyBanner}>
             <Ionicons name="calendar-outline" size={22} color={COLORS.textMuted} />

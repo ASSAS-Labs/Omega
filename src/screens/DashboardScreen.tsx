@@ -13,17 +13,26 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, RADIUS } from '../theme/colors';
 import { useAppStore } from '../store/useAppStore';
 import { useTimeSync } from '../hooks/useTimeSync';
+import WorkoutDraftBanner from '../components/WorkoutDraftBanner';
 import { DayOfWeek, WorkoutLog } from '../types';
 import { getWeekDates } from '../utils/dateUtils';
 import * as db from '../services/database';
 import { format, isSameDay } from 'date-fns';
+import { convertWeight, roundWeight } from '../services/weightUnitPrefs';
+import { useWeightUnit } from '../hooks/useWeightUnit';
 
 interface DashboardScreenProps {
   onStartWorkout: (dateStr: string, dayOfWeek: DayOfWeek) => void;
+  onResumeWorkout: (dateStr: string, dayOfWeek: DayOfWeek) => void;
   onNavigateSplitSetup: () => void;
 }
 
-export default function DashboardScreen({ onStartWorkout, onNavigateSplitSetup }: DashboardScreenProps) {
+export default function DashboardScreen({
+  onStartWorkout,
+  onResumeWorkout,
+  onNavigateSplitSetup,
+}: DashboardScreenProps) {
+  const weightUnit = useWeightUnit();
   const { weeklySplit, muscleGroups, refreshData, workoutSavedVersion } = useAppStore();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [completedDates, setCompletedDates] = useState<Set<string>>(new Set());
@@ -133,6 +142,11 @@ export default function DashboardScreen({ onStartWorkout, onNavigateSplitSetup }
             <Text style={styles.streakText}>{streak} Day Streak</Text>
           </View>
         </View>
+
+        {/* Crash-recovery banner: unfinalized workout draft */}
+        <WorkoutDraftBanner
+          onResume={(draft) => onResumeWorkout(draft.date, draft.day)}
+        />
 
         {/* Weekly Calendar Track View */}
         <View style={styles.calendarCard}>
@@ -276,7 +290,13 @@ export default function DashboardScreen({ onStartWorkout, onNavigateSplitSetup }
               <View style={styles.summaryStatDivider} />
               <View style={styles.summaryStat}>
                 <Text style={styles.summaryStatVal}>
-                  {Math.round(selectedDayLog.sets.reduce((acc, s) => acc + s.weight * s.reps, 0))} kg
+                  {roundWeight(
+                    convertWeight(
+                      selectedDayLog.sets.reduce((acc, s) => acc + s.weight * s.reps, 0),
+                      weightUnit
+                    )
+                  )}{' '}
+                  {weightUnit}
                 </Text>
                 <Text style={styles.summaryStatLbl}>Volume</Text>
               </View>
