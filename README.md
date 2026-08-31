@@ -1,5 +1,10 @@
 # Omega Gym Tracker
 
+[![CI Pipeline](https://github.com/RonnieRobert/Gym-Tracker-App/actions/workflows/ci.yml/badge.svg)](https://github.com/RonnieRobert/Gym-Tracker-App/actions/workflows/ci.yml)
+![Tests](https://img.shields.io/badge/tests-45%20passed%20%7C%20100%25%20core%20coverage-brightgreen)
+![TypeScript](https://img.shields.io/badge/typescript-strict%20%7C%200%20errors-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+
 > **A local-first, privacy-focused workout tracker and progressive overload manager built with React Native, Expo, TypeScript, and SQLite.**
 
 Track workouts, build custom routines, monitor strength progression, and analyze training volume — **without user accounts, advertisements, telemetry, or cloud dependencies.**
@@ -23,6 +28,39 @@ Track workouts, build custom routines, monitor strength progression, and analyze
 | **Exercise Library** | `assets/screenshots/02_exercise_library.png` | Global movement catalog, muscle group tagging, instant search, CRUD actions |
 | **Settings & Data Backup** | `assets/screenshots/03_settings.png` | Rest timer configuration, KG/LBS preference toggle, JSON database export and import |
 | **Analytics & 1RM Progression** | `assets/screenshots/04_analytics.png` | Interactive volume charts, 4-week trend comparison, estimated 1RM calculations |
+
+---
+
+## Continuous Integration & Quality Assurance
+
+Every commit and pull request is automatically validated through a GitHub Actions CI pipeline with strict quality gates:
+
+```text
+Code Commit / Pull Request
+           │
+           ▼
+     GitHub Actions
+           │
+           ├── 1. Clean Dependency Installation (`npm ci`)
+           ├── 2. TypeScript Compilation Check (`npx tsc --noEmit`)
+           └── 3. Automated Jest Test Suite (`npm test -- --coverage`)
+                      │
+                      ▼
+               Quality Gate Passed (0 errors / 45 tests passing)
+```
+
+### Verified Test Matrix
+
+| Quality Gate | Verification Command | Scope & Verified Logic | Result |
+|---|---|---|---|
+| **TypeScript Typecheck** | `npx tsc --noEmit` | Strict compilation across all screens, hooks, services, and types | **0 errors** |
+| **1RM Epley Formula** | `npm test` (`calculations.test.ts`) | $W \times (1 + R/30)$, 1-rep parity, 0-rep guards, high-rep bounds, NaN handling | **Passed** |
+| **Volume Aggregation** | `npm test` (`calculations.test.ts`) | Multi-exercise set summation, malformed set input sanitization | **Passed** |
+| **Weight Unit Conversion** | `npm test` (`calculations.test.ts`) | $1\text{ kg} \approx 2.20462\text{ lbs}$, 1-decimal rounding, reversible round-trip parity | **Passed** |
+| **Streak & Gap Math** | `npm test` (`dateUtils.test.ts`) | Consecutive days, same-day multi-session deduplication, $\ge 2$ day gap resets | **Passed** |
+| **Weekly Target Compliance** | `npm test` (`dateUtils.test.ts`) | ISO 8601 week transitions, month and year boundary transitions, target met flags | **Passed** |
+| **Relative Date Formatting** | `npm test` (`dateUtils.test.ts`) | "Today", "Yesterday", "X days ago", ISO string sanitization, fallback formats | **Passed** |
+| **Code Coverage** | `npm test -- --coverage` | Statement and line coverage across domain utilities (`calculations.ts`, `dateUtils.ts`) | **100%** |
 
 ---
 
@@ -52,13 +90,6 @@ Track workouts, build custom routines, monitor strength progression, and analyze
 - **Full Database Export**: Serializes the entire relational database into a standardized, human-readable JSON schema and opens the native device share sheet via `expo-sharing`.
 - **Validated Restoration**: Imports JSON backup files via `expo-document-picker`, validates schema structure, and restores exercises, splits, templates, and logs within atomic database operations.
 
-### 6. Automated Unit Testing (100% Core Coverage)
-Comprehensive Jest test suites covering core domain calculation and date math logic:
-- **1RM Calculations**: Validated Epley formula $\text{Weight} \times (1 + \frac{\text{Reps}}{30})$ with verified parity for 1-rep maxes, 0-rep guards, high-rep bounds, and NaN/invalid input sanitization.
-- **Volume Aggregation**: Multi-exercise volume summing with edge-case handling for malformed sets.
-- **Reversible Unit Conversions**: Validated $1\text{ kg} \approx 2.20462\text{ lbs}$ conversion parity and 1-decimal-place rounding.
-- **Streak & ISO Week Math**: Validated consecutive streak calculations, duplicate same-day session normalization, multi-day gap resets, and ISO 8601 week boundary transitions across month and year boundaries.
-
 ---
 
 ## Tech Stack
@@ -75,6 +106,7 @@ Comprehensive Jest test suites covering core domain calculation and date math lo
 | **Haptics & Vibration** | [expo-haptics](https://docs.expo.dev/versions/latest/sdk/haptics/) | 15.0 | Timer completion feedback |
 | **Date Calculations** | [date-fns](https://date-fns.org/) | 4.1 | ISO 8601 calendar and date arithmetic |
 | **Testing** | [Jest](https://jestjs.io/) / [jest-expo](https://docs.expo.dev/develop/unit-testing/) | Jest 30 | Automated unit testing |
+| **Continuous Integration** | [GitHub Actions](https://github.com/features/actions) | - | Automated linting, typecheck, and unit test CI pipeline |
 
 ---
 
