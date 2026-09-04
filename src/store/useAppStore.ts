@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { DayOfWeek, MuscleGroup, Exercise } from '../types';
 import * as db from '../services/database';
+import { formatISODate } from '../utils/dateUtils';
 
 interface AppState {
   weeklySplit: Record<DayOfWeek, string[]>;
@@ -32,7 +33,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   muscleGroups: [],
   allExercises: [],
   isLoading: true,
-  selectedDate: new Date().toISOString().split('T')[0],
+  selectedDate: formatISODate(new Date()),
   workoutSavedVersion: 0,
 
   initStore: async () => {

@@ -76,17 +76,21 @@ Code Commit / Pull Request
 - **Crash Recovery Banner**: When returning to the app or navigating screens during an active session, a persistent **"Workout in Progress — [Resume] | [Discard]"** banner allows immediate session recovery, preventing data loss across background app terminations.
 - **Atomic Log Finalization**: Completing a session writes all completed sets into SQLite in a single transaction before purging the working draft.
 
-### 3. Rest Timer with Haptic & Audio-Visual Alerts
+### 3. Rest Timer with Notifee Background Alerts & Haptics
 - **Configurable Countdown**: Minute and second rest intervals customizable per session and stored in persistent preferences.
+- **Robust Background Notifications**: Uses `@notifee/react-native` to reliably schedule and deliver timer completion notifications even when the app is completely backgrounded or closed.
 - **Native Haptic Feedback**: Triggers a 3-pulse vibration pattern on Android (`Vibration.vibrate([0, 400, 200, 400])`) and success haptics on iOS (`expo-haptics`) when the countdown reaches zero.
-- **Safe Foreground Lifecycle**: Independent in-app countdown state with foreground notification fallbacks that gracefully isolate environments without crashing.
 
 ### 4. Dynamic Unit Conversion & Weekly Split Engine
 - **KG <-> LBS Dynamic Unit Engine**: First-launch onboarding prompt and instantaneous toggle in Settings. Converts canonical database kg storage to display units on the fly across workout logging, historical benchmarks, and progression charts.
 - **Customizable Routine Splits**: Multi-muscle group assignment per day of the week (Monday through Sunday) supporting PPL, Upper/Lower, Arnold Split, Bro Split, or fully custom routines.
 - **Previous Session Benchmarks**: Dynamically fetches and displays the exact weight and rep numbers achieved during the previous workout for each exercise.
 
-### 5. Data Portability (JSON Export & Import)
+### 5. Pre-Seeded Exercise Library & Custom Movements
+- **Pre-populated Pool**: The app ships with a comprehensive pool of standard exercises, fully categorized by muscle groups (Chest, Back, Legs, etc.), allowing users to immediately begin logging without manual data entry.
+- **Custom Exercises**: Users can seamlessly add custom movements directly into the local catalog, which are fully supported across all split assignments, statistics, and workout logs.
+
+### 6. Data Portability (JSON Export & Import)
 - **Full Database Export**: Serializes the entire relational database into a standardized, human-readable JSON schema and opens the native device share sheet via `expo-sharing`.
 - **Validated Restoration**: Imports JSON backup files via `expo-document-picker`, validates schema structure, and restores exercises, splits, templates, and logs within atomic database operations.
 

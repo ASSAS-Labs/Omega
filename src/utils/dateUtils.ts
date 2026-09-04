@@ -12,7 +12,7 @@ export const DAYS_OF_WEEK: DayOfWeek[] = [
 ];
 
 export function getTodayDateString(): string {
-  return new Date().toISOString().split('T')[0];
+  return formatISODate(new Date());
 }
 
 export function getTodayDayOfWeek(): DayOfWeek {

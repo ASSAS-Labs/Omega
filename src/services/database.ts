@@ -1,5 +1,6 @@
 import * as SQLite from 'expo-sqlite';
 import { DayOfWeek, Exercise, MuscleGroup, WeeklySplitDay, WorkoutLog, WorkoutSet, ExerciseHistory, DailyCompliance } from '../types';
+import { formatISODate } from '../utils/dateUtils';
 
 const DB_NAME = 'gym_tracker.db';
 
@@ -179,27 +180,8 @@ async function initSchema(db: SQLite.SQLiteDatabase) {
       await db.runAsync('INSERT INTO muscle_groups (id, name) VALUES (?, ?);', [mg.id, mg.name]);
     }
 
-    // Default Split setup example:
-    // Monday/Thursday: Legs & Forearms
-    // Tuesday/Friday: Chest & Triceps
-    // Wednesday/Saturday: Back & Biceps
-    const defaultSplit: { day: DayOfWeek; mgIds: string[] }[] = [
-      { day: 'Monday', mgIds: ['mg_legs', 'mg_forearms'] },
-      { day: 'Tuesday', mgIds: ['mg_chest', 'mg_triceps'] },
-      { day: 'Wednesday', mgIds: ['mg_back', 'mg_biceps'] },
-      { day: 'Thursday', mgIds: ['mg_legs', 'mg_forearms'] },
-      { day: 'Friday', mgIds: ['mg_chest', 'mg_triceps'] },
-      { day: 'Saturday', mgIds: ['mg_back', 'mg_biceps'] },
-    ];
-
-    for (const item of defaultSplit) {
-      for (const mgId of item.mgIds) {
-        await db.runAsync('INSERT INTO weekly_split (day_of_week, muscle_group_id) VALUES (?, ?);', [
-          item.day,
-          mgId,
-        ]);
-      }
-    }
+    // No pre-populated routine split — all days start completely empty/unassigned.
+    // The user must explicitly configure their weekly split via Settings > Routine Split.
   }
 }
 
@@ -559,9 +541,9 @@ export async function getExerciseVolumeTrend(
   cutoff.setDate(cutoff.getDate() - 28);
   const priorCutoff = new Date();
   priorCutoff.setDate(priorCutoff.getDate() - 56);
-  const today = new Date().toISOString().split('T')[0];
-  const cutoffStr = cutoff.toISOString().split('T')[0];
-  const priorCutoffStr = priorCutoff.toISOString().split('T')[0];
+  const today = formatISODate(new Date());
+  const cutoffStr = formatISODate(cutoff);
+  const priorCutoffStr = formatISODate(priorCutoff);
 
   const rows = await db.getAllAsync<{ volume: number; bucket: string }>(
     `SELECT
@@ -607,7 +589,7 @@ export async function getComplianceStats(daysLimit: number = 30): Promise<{ tota
   for (let i = 0; i < daysLimit; i++) {
     const d = new Date();
     d.setDate(today.getDate() - i);
-    const dateStr = d.toISOString().split('T')[0];
+    const dateStr = formatISODate(d);
     const dayOfWeekStr = daysMap[d.getDay()];
     
     const isScheduled = (split[dayOfWeekStr] || []).length > 0;
@@ -620,7 +602,7 @@ export async function getComplianceStats(daysLimit: number = 30): Promise<{ tota
     if (!streakBroken) {
       if (isCompleted) {
         currentStreak++;
-      } else if (isScheduled && dateStr !== today.toISOString().split('T')[0]) {
+      } else if (isScheduled && dateStr !== formatISODate(today)) {
         streakBroken = true;
       }
     }

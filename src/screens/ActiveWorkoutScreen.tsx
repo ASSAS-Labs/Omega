@@ -12,6 +12,7 @@ import {
   LayoutAnimation,
   Platform,
   UIManager,
+  SectionList,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
@@ -25,7 +26,7 @@ import {
   getWorkoutDraft,
   saveWorkoutDraft,
 } from '../services/workoutDraftService';
-import { cancelRestTimerNotification } from '../services/notificationService';
+import { cancelRestTimerNotification } from '../services/notifeeTimerService';
 import RestTimerModal from '../components/RestTimerModal';
 import {
   convertWeight,
@@ -307,6 +308,36 @@ export default function ActiveWorkoutScreen() {
       );
     } else {
       targetExercises = allExercises.slice(0, 6); // Default fall-back selection
+    }
+
+    // Group the session exercises by muscle group so movements for the same
+    // group sit together (e.g. all of a day's Back exercises, then all of its
+    // Biceps ones) instead of being interleaved in insertion order. This only
+    // applies to auto-derived lists (split / fallback) — an explicitly saved
+    // day template keeps the user's custom ordering.
+    if (template.length === 0 && assignedMgNames.length > 0) {
+      const grouped = new Map<string, Exercise[]>();
+      for (const ex of targetExercises) {
+        const key = ex.muscleGroup || '';
+        const bucket = grouped.get(key) ?? [];
+        bucket.push(ex);
+        grouped.set(key, bucket);
+      }
+      const ordered: Exercise[] = [];
+      for (const name of assignedMgNames) {
+        const bucket = grouped.get(name);
+        if (!bucket) continue;
+        ordered.push(...bucket);
+        // Delete so the leftover sweep below only sees unmatched groups and
+        // won't re-append the same exercises.
+        grouped.delete(name);
+      }
+      // Append any leftover buckets (defensive: exercises whose group isn't one
+      // of the day's split groups) after the ordered ones.
+      for (const [, bucket] of grouped) {
+        ordered.push(...bucket);
+      }
+      targetExercises = ordered;
     }
 
     // Prepare exercise logs structure with previous session references
@@ -722,8 +753,31 @@ export default function ActiveWorkoutScreen() {
                 </Text>
               </View>
             ) : (
-              <ScrollView style={styles.pickerList}>
-                {allExercises.map((ex) => (
+              <SectionList
+                style={styles.pickerList}
+                sections={(() => {
+                  const grouped: Record<string, Exercise[]> = {};
+                  for (const ex of allExercises) {
+                    const key = ex.muscleGroup || 'Other';
+                    if (!grouped[key]) grouped[key] = [];
+                    grouped[key].push(ex);
+                  }
+                  // Sort sections alphabetically, with 'Other' at the end
+                  return Object.entries(grouped)
+                    .sort(([a], [b]) => {
+                      if (a === 'Other') return 1;
+                      if (b === 'Other') return -1;
+                      return a.localeCompare(b);
+                    })
+                    .map(([title, data]) => ({ title, data }));
+                })()}
+                keyExtractor={(item) => item.id}
+                renderSectionHeader={({ section: { title } }) => (
+                  <View style={styles.pickerSectionHeader}>
+                    <Text style={styles.pickerSectionTitle}>{title}</Text>
+                  </View>
+                )}
+                renderItem={({ item: ex }) => (
                   <TouchableOpacity
                     key={ex.id}
                     style={styles.pickerRow}
@@ -740,8 +794,9 @@ export default function ActiveWorkoutScreen() {
                     </View>
                     <Ionicons name="add-circle-outline" size={20} color={COLORS.accent} />
                   </TouchableOpacity>
-                ))}
-              </ScrollView>
+                )}
+                stickySectionHeadersEnabled
+              />
             )}
             <TouchableOpacity
               style={styles.pickerCloseBtn}
@@ -1068,6 +1123,21 @@ const styles = StyleSheet.create({
   },
   pickerList: {
     flexGrow: 0,
+  },
+  pickerSectionHeader: {
+    backgroundColor: COLORS.bgCard,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.borderSubtle,
+    marginTop: 4,
+  },
+  pickerSectionTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.accentBlue,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
   },
   pickerRow: {
     flexDirection: 'row',

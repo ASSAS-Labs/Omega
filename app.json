@@ -11,7 +11,10 @@
       "bundleIdentifier": "com.gymtracker.app"
     },
     "android": {
-      "package": "com.counterapp.tracker"
+      "package": "com.counterapp.tracker",
+      "permissions": [
+        "SCHEDULE_EXACT_ALARM"
+      ]
     },
     "plugins": [
       "expo-router",

@@ -6,8 +6,9 @@ import { getDefaultRestDurationMs } from '../services/restTimerPrefs';
 import {
   cancelRestTimerNotification,
   scheduleRestTimerNotification,
-} from '../services/notificationService';
+} from '../services/notifeeTimerService';
 import { triggerRestTimerFinishedAlert } from '../services/timerAlertService';
+import { useTimeSync } from '../hooks/useTimeSync';
 
 interface RestTimerModalProps {
   visible: boolean;
@@ -38,7 +39,21 @@ export default function RestTimerModal({ visible, onClose }: RestTimerModalProps
     }
   }, [visible]);
 
-  // Countdown ticker
+  // Foreground re-sync: update UI when returning from background
+  useTimeSync(() => {
+    if (!running || endRef.current === 0) return;
+    const left = endRef.current - Date.now();
+    if (left <= 0) {
+      setRemainingMs(0);
+      setRunning(false);
+    } else {
+      setRemainingMs(left);
+    }
+  });
+
+  // Countdown ticker for the UI.
+  // The actual background alert is an OS-level notifee timestamp trigger
+  // scheduled to fire at the same moment the countdown reaches zero.
   useEffect(() => {
     if (!running) return;
     const interval = setInterval(() => {
@@ -46,10 +61,10 @@ export default function RestTimerModal({ visible, onClose }: RestTimerModalProps
       if (left <= 0) {
         setRemainingMs(0);
         setRunning(false);
-        cancelRestTimerNotification();
         clearInterval(interval);
+        cancelRestTimerNotification();
         // Countdown finished — buzz/vibrate so the user notices without
-        // looking at the screen (Expo Go safe: local Vibration/Haptics only).
+        // looking at the screen (local Vibration/Haptics only).
         triggerRestTimerFinishedAlert();
       } else {
         setRemainingMs(left);
@@ -91,7 +106,7 @@ export default function RestTimerModal({ visible, onClose }: RestTimerModalProps
     onClose();
   }, [onClose]);
 
-  // Cancel the notification whenever the modal is dismissed externally
+  // Clean up if modal dismissed externally
   useEffect(() => {
     if (!visible) {
       setRunning(false);

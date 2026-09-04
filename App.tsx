@@ -1,15 +1,11 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, LogBox } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-
-// Expo Go (SDK 53/54) prints a harmless "Android Push notifications ..."
-// warning whenever expo-notifications is imported for local-only use. This
-// app never touches remote push tokens, so the warning is safe to silence.
-LogBox.ignoreLogs(['expo-notifications: Android Push notifications']);
 import {
   NavigationContainer,
   DefaultTheme,
   Theme,
+  createNavigationContainerRef,
 } from '@react-navigation/native';
 import {
   createBottomTabNavigator,
@@ -31,7 +27,7 @@ import SplitSetupScreen from './src/screens/SplitSetupScreen';
 import ExercisesScreen from './src/screens/ExercisesScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import WorkoutDaysScreen from './src/screens/WorkoutDaysScreen';
-import { initNotifications } from './src/services/notificationService';
+import { initNotifee } from './src/services/notifeeTimerService';
 import {
   hasStoredWeightUnit,
   loadWeightUnit,
@@ -45,10 +41,12 @@ import {
   RootTabParamList,
   WorkoutStackParamList,
 } from './src/types';
+import WalkthroughOverlay from './src/components/WalkthroughOverlay';
 
 const Tab = createBottomTabNavigator<RootTabParamList>();
 const WorkoutStack = createStackNavigator<WorkoutStackParamList>();
 const RootStack = createNativeStackNavigator<RootStackParamList>();
+const navigationRef = createNavigationContainerRef<RootStackParamList>();
 
 // Minimalist dark theme applied to the whole navigation tree
 const AppTheme: Theme = {
@@ -256,30 +254,79 @@ export default function App() {
   const { initStore, isLoading } = useAppStore();
   const [unitPromptVisible, setUnitPromptVisible] = useState(false);
 
-  // Initialize the local SQLite database on startup
+  // Initialize the local SQLite database on startup. Wrapped in a guarded
+  // lifecycle check so the native work never runs after the component has
+  // unmounted (which can happen on Fast Refresh / reload and invokes native
+  // modules before the React context is attached).
   useEffect(() => {
-    initStore();
+    let isMounted = true;
+    const init = async () => {
+      try {
+        if (isMounted) {
+          await initStore();
+        }
+      } catch (err) {
+        console.warn('Failed to initialize store:', err);
+      }
+    };
+    init();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
-  // Initialize the rest-timer notification channel (safe in Expo Go)
+  // Initialize the notifee rest-timer permission and notification channel
+  // on every full app mount (independent of store loading). All notifee calls
+  // live inside this effect (and inside functions it calls) — never at module
+  // scope — so the native bridge is only touched while the JS context is
+  // attached. The isMounted guard prevents any post-unmount re-run during a
+  // Fast Refresh callback.
   useEffect(() => {
-    initNotifications();
+    let isMounted = true;
+    const initChannel = async () => {
+      try {
+        if (isMounted) {
+          await initNotifee();
+        }
+      } catch (err) {
+        console.warn('Failed to initialize notification channel:', err);
+      }
+    };
+    initChannel();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // First-launch onboarding: if the user has never chosen a weight unit,
   // ask them to pick KG or LBS before they start logging.
   useEffect(() => {
+    let isMounted = true;
     (async () => {
       await loadWeightUnit();
       const stored = await hasStoredWeightUnit();
-      if (!stored) setUnitPromptVisible(true);
+      if (!stored && isMounted) setUnitPromptVisible(true);
     })();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const handleSelectWeightUnit = (unit: WeightUnit) => {
     saveWeightUnit(unit);
     setUnitPromptVisible(false);
   };
+
+  const handleWalkthroughNavigate = useCallback(
+    (tab: 'Dashboard' | 'Settings' | 'Exercises') => {
+      if (navigationRef.isReady()) {
+        (navigationRef as any).navigate('Tabs', {
+          screen: tab,
+        });
+      }
+    },
+    []
+  );
 
   if (isLoading) {
     return (
@@ -292,7 +339,7 @@ export default function App() {
 
   return (
     <GestureHandlerRootView style={styles.container}>
-      <NavigationContainer theme={AppTheme}>
+      <NavigationContainer theme={AppTheme} ref={navigationRef}>
         <StatusBar style="light" />
         <RootNavigator />
       </NavigationContainer>
@@ -300,6 +347,7 @@ export default function App() {
         visible={unitPromptVisible}
         onSelect={handleSelectWeightUnit}
       />
+      <WalkthroughOverlay onNavigateTab={handleWalkthroughNavigate} />
     </GestureHandlerRootView>
   );
 }

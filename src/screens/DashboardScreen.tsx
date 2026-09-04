@@ -20,6 +20,7 @@ import * as db from '../services/database';
 import { format, isSameDay } from 'date-fns';
 import { convertWeight, roundWeight } from '../services/weightUnitPrefs';
 import { useWeightUnit } from '../hooks/useWeightUnit';
+import { formatISODate } from '../utils/dateUtils';
 
 interface DashboardScreenProps {
   onStartWorkout: (dateStr: string, dayOfWeek: DayOfWeek) => void;
@@ -60,8 +61,8 @@ export default function DashboardScreen({
   // open, jump to today and refresh
   useEffect(() => {
     const interval = setInterval(() => {
-      const todayStr = new Date().toISOString().split('T')[0];
-      const currentStr = selectedDateRef.current.toISOString().split('T')[0];
+      const todayStr = formatISODate(new Date());
+      const currentStr = formatISODate(selectedDateRef.current);
       if (todayStr !== currentStr) {
         refreshCurrentDateAndLogs();
       }
@@ -71,7 +72,7 @@ export default function DashboardScreen({
 
   const loadData = useCallback(async () => {
     try {
-      const dateStr = selectedDate.toISOString().split('T')[0];
+      const dateStr = formatISODate(selectedDate);
       const [log, complianceStats] = await Promise.all([
         db.getWorkoutLogForDate(dateStr),
         db.getComplianceStats(30),
@@ -105,7 +106,7 @@ export default function DashboardScreen({
   // Delete the selected day's logged workout and revert the card to "Start Workout"
   const handleConfirmDelete = async () => {
     try {
-      const dateStr = selectedDate.toISOString().split('T')[0];
+      const dateStr = formatISODate(selectedDate);
       await db.deleteWorkoutLogForDate(dateStr);
       setConfirmDeleteVisible(false);
       // Bump version to trigger a dashboard reload (card reverts to active state)
@@ -117,7 +118,7 @@ export default function DashboardScreen({
     }
   };
 
-  const selectedDateStr = selectedDate.toISOString().split('T')[0];
+  const selectedDateStr = formatISODate(selectedDate);
   const dayIndex = selectedDate.getDay();
   const daysMap: DayOfWeek[] = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const selectedDayOfWeek = daysMap[dayIndex];
@@ -159,7 +160,7 @@ export default function DashboardScreen({
 
           <View style={styles.weekDaysRow}>
             {weekDates.map((d) => {
-              const dStr = d.toISOString().split('T')[0];
+              const dStr = formatISODate(d);
               const dayStr = daysMap[d.getDay()];
               const isSelected = isSameDay(d, selectedDate);
               const isCompleted = completedDates.has(dStr);
@@ -247,6 +248,7 @@ export default function DashboardScreen({
             style={[
               styles.startWorkoutButton,
               selectedDayLog && styles.viewWorkoutButton,
+              assignedMgNames.length === 0 && styles.buttonTopSpacer,
             ]}
             onPress={() => onStartWorkout(selectedDateStr, selectedDayOfWeek)}
             activeOpacity={0.8}
@@ -478,7 +480,8 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   routineTopRight: {
-    alignItems: 'flex-end',
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
     flexShrink: 0,
   },
@@ -494,7 +497,7 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     flexShrink: 1,
     flexWrap: 'wrap',
-    marginBottom: SPACING.sm,
+    marginBottom: 0,
   },
   statusTag: {
     paddingHorizontal: 10,
@@ -520,7 +523,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6,
-    marginBottom: SPACING.lg,
+    marginTop: 6,
+    marginBottom: 12,
   },
   targetPill: {
     backgroundColor: COLORS.bgElevated,
@@ -543,6 +547,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
+  },
+  buttonTopSpacer: {
+    marginTop: 12,
   },
   viewWorkoutButton: {
     backgroundColor: COLORS.bgElevated,
