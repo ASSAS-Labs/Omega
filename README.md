@@ -1,9 +1,9 @@
 # Omega Gym Tracker
 
-[![CI Pipeline](https://github.com/RonnieRobert/Gym-Tracker-App/actions/workflows/ci.yml/badge.svg)](https://github.com/RonnieRobert/Gym-Tracker-App/actions/workflows/ci.yml)
+[![CI Pipeline](https://github.com/ASSAS-Labs/Omega/actions/workflows/ci.yml/badge.svg)](https://github.com/ASSAS-Labs/Omega/actions/workflows/ci.yml)
 ![Tests](https://img.shields.io/badge/tests-45%20passed%20%7C%20100%25%20core%20coverage-brightgreen)
 ![TypeScript](https://img.shields.io/badge/typescript-strict%20%7C%200%20errors-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
+![License](https://img.shields.io/badge/license-PolyForm%20Noncommercial-blue)
 
 > **A local-first, privacy-focused workout tracker and progressive overload manager built with React Native, Expo, TypeScript, and SQLite.**
 
@@ -164,8 +164,8 @@ counterapp/
 ### Setup
 ```bash
 # Clone the repository
-git clone https://github.com/RonnieRobert/Gym-Tracker-App.git
-cd Gym-Tracker-App
+git clone https://github.com/ASSAS-Labs/Omega.git
+cd Omega
 
 # Install project dependencies
 npm install
@@ -208,4 +208,5 @@ eas build -p android --profile preview
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE).
+This project is licensed under the **PolyForm Noncommercial License 1.0.0**. You are free to view, clone, fork, and contribute for personal and educational purposes, but commercial use, sales, and monetized distribution are strictly prohibited. See the [LICENSE](LICENSE) file for details.
+
