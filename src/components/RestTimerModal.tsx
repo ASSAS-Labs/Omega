@@ -27,6 +27,9 @@ export default function RestTimerModal({ visible, onClose }: RestTimerModalProps
   const [remainingMs, setRemainingMs] = useState(60000);
   const [running, setRunning] = useState(false);
   const endRef = useRef(0);
+  // Id of the notification we most recently scheduled for the current run, so
+  // pausing/stopping cancels exactly that pending alert.
+  const pendingNotificationIdRef = useRef<string | null>(null);
 
   // Load the user's preferred default duration when the modal opens
   useEffect(() => {
@@ -73,23 +76,30 @@ export default function RestTimerModal({ visible, onClose }: RestTimerModalProps
     return () => clearInterval(interval);
   }, [running]);
 
+  // Shared helper: schedule the OS-level background alert for the given
+  // seconds and remember its unique id so it can be cancelled precisely.
+  const scheduleAlert = async (seconds: number) => {
+    pendingNotificationIdRef.current = await scheduleRestTimerNotification(seconds);
+  };
+
   const handleStart = () => {
     const end = Date.now() + remainingMs;
     endRef.current = end;
     setRunning(true);
-    scheduleRestTimerNotification(Math.max(1, Math.round(remainingMs / 1000)));
+    scheduleAlert(Math.max(1, Math.round(remainingMs / 1000)));
   };
 
   const handlePause = () => {
     setRunning(false);
-    cancelRestTimerNotification();
+    cancelRestTimerNotification(pendingNotificationIdRef.current);
+    pendingNotificationIdRef.current = null;
   };
 
   const handleResume = () => {
     const end = Date.now() + remainingMs;
     endRef.current = end;
     setRunning(true);
-    scheduleRestTimerNotification(Math.max(1, Math.round(remainingMs / 1000)));
+    scheduleAlert(Math.max(1, Math.round(remainingMs / 1000)));
   };
 
   const handleRestart = () => {
@@ -97,12 +107,13 @@ export default function RestTimerModal({ visible, onClose }: RestTimerModalProps
     setRunning(true);
     const end = Date.now() + durationMs;
     endRef.current = end;
-    scheduleRestTimerNotification(Math.max(1, Math.round(durationMs / 1000)));
+    scheduleAlert(Math.max(1, Math.round(durationMs / 1000)));
   };
 
   const handleEnd = useCallback(() => {
     setRunning(false);
-    cancelRestTimerNotification();
+    cancelRestTimerNotification(pendingNotificationIdRef.current);
+    pendingNotificationIdRef.current = null;
     onClose();
   }, [onClose]);
 
@@ -110,7 +121,8 @@ export default function RestTimerModal({ visible, onClose }: RestTimerModalProps
   useEffect(() => {
     if (!visible) {
       setRunning(false);
-      cancelRestTimerNotification();
+      cancelRestTimerNotification(pendingNotificationIdRef.current);
+      pendingNotificationIdRef.current = null;
     }
   }, [visible]);
 

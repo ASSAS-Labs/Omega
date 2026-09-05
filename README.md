@@ -15,7 +15,7 @@ Track workouts, build custom routines, monitor strength progression, and analyze
 
 <p align="center">
   <img src="assets/screenshots/01_dashboard.png" width="180" alt="Dashboard and Streak"/>
-  <img src="assets/screenshots/02_exercise_library.png" width="180" alt="Exercise Library"/>
+  <img src="assets/screenshots/02_exercises-tab.png" width="180" alt="Exercise Library"/>
   <img src="assets/screenshots/03_settings.png" width="180" alt="Settings and Data Backup"/>
   <img src="assets/screenshots/04_analytics.png" width="180" alt="Analytics and Progression"/>
 </p>
@@ -25,7 +25,7 @@ Track workouts, build custom routines, monitor strength progression, and analyze
 | Screen | File Path | Highlights |
 |---|---|---|
 | **Dashboard & Streak** | `assets/screenshots/01_dashboard.png` | 7-day compliance strip, current day split, active streak badge, one-tap session launch |
-| **Exercise Library** | `assets/screenshots/02_exercise_library.png` | Global movement catalog, muscle group tagging, instant search, CRUD actions |
+| **Exercise Library** | `assets/screenshots/02_exercises-tab.png` | Global movement catalog, muscle group tagging, instant search, CRUD actions |
 | **Settings & Data Backup** | `assets/screenshots/03_settings.png` | Rest timer configuration, KG/LBS preference toggle, JSON database export and import |
 | **Analytics & 1RM Progression** | `assets/screenshots/04_analytics.png` | Interactive volume charts, 4-week trend comparison, estimated 1RM calculations |
 
