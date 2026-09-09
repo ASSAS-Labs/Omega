@@ -41,9 +41,9 @@ Code Commit / Pull Request
            ▼
      GitHub Actions
            │
-           ├── 1. Clean Dependency Installation (`npm ci`)
+           ├── 1. Clean Dependency Installation (`npm ci --legacy-peer-deps`)
            ├── 2. TypeScript Compilation Check (`npx tsc --noEmit`)
-           └── 3. Automated Jest Test Suite (`npm test -- --coverage`)
+           └── 3. Automated Jest Test Suite (`npm test -- --ci --watchAll=false`)
                       │
                       ▼
                Quality Gate Passed (0 errors / 45 tests passing)
@@ -107,6 +107,8 @@ Code Commit / Pull Request
 | **Navigation** | [React Navigation](https://reactnavigation.org/) | 7.x | Bottom tabs and native stack routing |
 | **Data Visualization** | [react-native-gifted-charts](https://github.com/Abhinandan-Kushwaha/react-native-gifted-charts) | 1.4 | Progression and volume line charts |
 | **Vector Graphics** | [react-native-svg](https://github.com/software-mansion/react-native-svg) | 15.12 | Chart and visual rendering |
+| **Background Alerts** | [@notifee/react-native](https://notifee.app/) | 9.1 | Exact alarm scheduling and background timer notifications |
+| **Local Draft Storage** | [AsyncStorage](https://react-native-async-storage.github.io/async-storage/) | 2.2 | In-progress workout draft persistence and user preferences |
 | **Haptics & Vibration** | [expo-haptics](https://docs.expo.dev/versions/latest/sdk/haptics/) | 15.0 | Timer completion feedback |
 | **Date Calculations** | [date-fns](https://date-fns.org/) | 4.1 | ISO 8601 calendar and date arithmetic |
 | **Testing** | [Jest](https://jestjs.io/) / [jest-expo](https://docs.expo.dev/develop/unit-testing/) | Jest 30 | Automated unit testing |
@@ -122,6 +124,7 @@ counterapp/
 │   └── screenshots/          # Application preview captures
 ├── src/
 │   ├── components/           # Reusable UI elements (RestTimerModal, DraftBanner, etc.)
+│   ├── constants/            # Static movement catalog (exercisePool.ts)
 │   ├── hooks/                # Custom React hooks (useTimeSync, useWeightUnit)
 │   ├── screens/              # Core application screens
 │   │   ├── ActiveWorkoutScreen.tsx
@@ -134,7 +137,7 @@ counterapp/
 │   ├── services/             # Local database, backup, notifications, preferences
 │   │   ├── backupService.ts
 │   │   ├── database.ts
-│   │   ├── notificationService.ts
+│   │   ├── notifeeTimerService.ts
 │   │   ├── restTimerPrefs.ts
 │   │   ├── timerAlertService.ts
 │   │   ├── weightUnitPrefs.ts
@@ -148,6 +151,7 @@ counterapp/
 │       └── __tests__/        # Jest unit test suites
 ├── App.tsx                   # Main entry point and navigation tree
 ├── app.json                  # Expo project configuration
+├── eas.json                  # Expo Application Services build configuration
 ├── package.json              # Project dependencies and test scripts
 └── tsconfig.json             # TypeScript configuration
 ```
