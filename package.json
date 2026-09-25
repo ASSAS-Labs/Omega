@@ -21,6 +21,7 @@
     "date-fns": "^4.1.0",
     "expo": "~54.0.37",
     "expo-av": "~16.0.8",
+    "expo-build-properties": "~1.0.10",
     "expo-constants": "~18.0.14",
     "expo-dev-client": "~6.0.21",
     "expo-document-picker": "~14.0.8",
