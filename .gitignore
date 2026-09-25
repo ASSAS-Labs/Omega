@@ -25,6 +25,9 @@ yarn-error.*
 # Testing
 coverage/
 
+# Agent / tooling scratch (session attachments, task locks/events)
+.reasonix/
+
 # OS
 .DS_Store
 Thumbs.db

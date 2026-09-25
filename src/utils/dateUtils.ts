@@ -153,6 +153,63 @@ export function calculateWorkoutStreak(
   return streak;
 }
 
+/**
+ * Computes every historical workout streak from a list of workout dates.
+ *
+ * Rules (mirrors `calculateWorkoutStreak`):
+ * - Dates are normalized to calendar YYYY-MM-DD days and deduplicated, so
+ *   multiple sessions logged on the same day count as a single active day.
+ * - Consecutive calendar days extend the running streak.
+ * - A gap of >= 2 days between two logged days concludes that streak.
+ * - The trailing streak (the most recent one) is concluded the same way, so a
+ *   still-running streak is reported at its current length.
+ *
+ * @param workoutDates - ISO date (or datetime) strings of logged workouts
+ * @returns Every streak length, sorted descending (highest first).
+ *          An empty array when no valid workout day exists.
+ */
+export function calculateAllStreaks(workoutDates: string[]): number[] {
+  if (!workoutDates || !Array.isArray(workoutDates) || workoutDates.length === 0) {
+    return [];
+  }
+
+  // Normalize, drop invalid entries, deduplicate same-day sessions, then sort
+  // ascending (earliest first) so streaks can be walked chronologically.
+  const uniqueDates = Array.from(
+    new Set(
+      workoutDates
+        .filter((d) => Boolean(d))
+        .map((d) => formatISODate(d))
+        .filter((s) => /^\d{4}-\d{2}-\d{2}$/.test(s))
+    )
+  ).sort();
+
+  if (uniqueDates.length === 0) {
+    return [];
+  }
+
+  const streaks: number[] = [];
+  let currentStreak = 1;
+
+  for (let i = 1; i < uniqueDates.length; i++) {
+    const dayDiff = Math.round(
+      (parseISO(uniqueDates[i]).getTime() - parseISO(uniqueDates[i - 1]).getTime()) /
+        (1000 * 60 * 60 * 24)
+    );
+
+    if (dayDiff === 1) {
+      currentStreak++;
+    } else {
+      // Gap >= 2 days (or a non-consecutive step): the streak concluded.
+      streaks.push(currentStreak);
+      currentStreak = 1;
+    }
+  }
+  streaks.push(currentStreak);
+
+  return streaks.sort((a, b) => b - a);
+}
+
 export interface WeeklyCompliance {
   scheduledCount: number;
   completedCount: number;

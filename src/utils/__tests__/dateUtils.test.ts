@@ -1,4 +1,5 @@
 import {
+  calculateAllStreaks,
   calculateWorkoutStreak,
   calculateWeeklyCompliance,
   formatISODate,
@@ -71,6 +72,73 @@ describe('Date Utilities', () => {
       expect(calculateWorkoutStreak(undefined, referenceDate)).toBe(0);
     });
 
+  });
+
+  describe('All-Time Streak History (calculateAllStreaks)', () => {
+    it('returns a single streak for one unbroken run of consecutive days', () => {
+      const dates = ['2026-08-30', '2026-08-31', '2026-09-01'];
+      expect(calculateAllStreaks(dates)).toEqual([3]);
+    });
+
+    it('returns every streak sorted highest first when gaps reset the run', () => {
+      // 5 consecutive days, then a 3-day run, then 2 solo sessions
+      const dates = [
+        '2026-08-01',
+        '2026-08-02',
+        '2026-08-03',
+        '2026-08-04',
+        '2026-08-05',
+        // gap of 3 days
+        '2026-08-09',
+        '2026-08-10',
+        '2026-08-11',
+        // gap of 1 day (single-day streak)
+        '2026-08-13',
+        // gap of 4 days
+        '2026-08-18',
+      ];
+
+      expect(calculateAllStreaks(dates)).toEqual([5, 3, 1, 1]);
+    });
+
+    it('treats a 2-day gap as the start of a new streak', () => {
+      // Aug 1, 2 (streak 2) ... Aug 4 (new streak) ... Aug 7 (new streak)
+      expect(calculateAllStreaks(['2026-08-01', '2026-08-02', '2026-08-04', '2026-08-07'])).toEqual([
+        2, 1, 1,
+      ]);
+    });
+
+    it('counts multiple sessions on the same day as a single streak day', () => {
+      const dates = [
+        '2026-09-01T08:00:00Z',
+        '2026-09-01T17:30:00Z',
+        '2026-09-02T09:15:00Z',
+        '2026-09-02T19:00:00Z',
+        '2026-09-02T21:00:00Z',
+        '2026-09-03T10:00:00Z',
+      ];
+
+      expect(calculateAllStreaks(dates)).toEqual([3]);
+    });
+
+    it('sorts input chronologically regardless of the order it is provided in', () => {
+      const shuffled = ['2026-08-12', '2026-08-10', '2026-08-11', '2026-08-02', '2026-08-01'];
+      expect(calculateAllStreaks(shuffled)).toEqual([3, 2]);
+    });
+
+    it('returns an empty array when there is no valid workout day', () => {
+      expect(calculateAllStreaks([])).toEqual([]);
+      expect(calculateAllStreaks(['invalid-date-string'])).toEqual([]);
+      // @ts-expect-error - testing invalid runtime input
+      expect(calculateAllStreaks(null)).toEqual([]);
+      // @ts-expect-error - testing invalid runtime input
+      expect(calculateAllStreaks(undefined)).toEqual([]);
+    });
+
+    it('ignores unusable entries mixed in with real workout days', () => {
+      const dates = ['', '2026-09-01', 'nonsense', '2026-09-02'];
+      expect(calculateAllStreaks(dates)).toEqual([2]);
+    });
   });
 
   describe('Weekly Target Compliance (calculateWeeklyCompliance)', () => {

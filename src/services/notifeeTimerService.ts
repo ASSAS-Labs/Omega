@@ -1,7 +1,9 @@
 import notifee, {
   AlarmType,
   AndroidImportance,
+  AndroidNotificationSetting,
   AuthorizationStatus,
+  NotificationSettings,
   TriggerType,
 } from '@notifee/react-native';
 
@@ -16,6 +18,62 @@ export const REST_TIMER_ALERT_ID = 'rest-timer-alert';
 // a trigger notification whose id was already delivered and dismissed, so we
 // must never reuse a delivered id for a later run.
 let restTimerSequence = 0;
+
+// Android 13+ can revoke SCHEDULE_EXACT_ALARM at any time. We only surface the
+// system "Alarms & reminders" screen once per app session so starting a rest
+// timer never spams the user with a settings redirect.
+let exactAlarmPrompted = false;
+
+/** True only when the OS reports exact alarms as granted for this app. */
+function isExactAlarmEnabled(settings: NotificationSettings): boolean {
+  const alarm = settings.android?.alarm;
+  // NOT_SUPPORTED = Android < 12 (exact alarms are always allowed there),
+  // ENABLED = explicitly granted. DISABLED = restricted by the user/OEM.
+  return (
+    alarm === AndroidNotificationSetting.ENABLED ||
+    alarm === AndroidNotificationSetting.NOT_SUPPORTED
+  );
+}
+
+/**
+ * Resolves how the rest-complete alert should be scheduled:
+ * - An `AlarmType` when exact alarms are available — the strongest guarantee,
+ *   since SET_ALARM_CLOCK wakes the device in Doze and survives OEM battery
+ *   killers.
+ * - `null` when the exact-alarm permission is restricted, in which case the
+ *   notification is scheduled without `alarmManager` so notifee falls back to
+ *   the OS's inexact scheduling path (WorkManager). The alert still fires, just
+ *   with a little timing drift, and the in-app countdown plus haptics still
+ *   fire exactly on time.
+ *
+ * `SCHEDULE_EXACT_ALARM` is a special-access permission and cannot be granted
+ * from a runtime dialog: when it is restricted the user is deep-linked to the
+ * system "Alarms & reminders" screen once per session, and the inexact fallback
+ * keeps the timer working until they enable it.
+ */
+export async function resolveRestTimerAlarmType(): Promise<AlarmType | null> {
+  let settings = await notifee.getNotificationSettings();
+
+  if (!isExactAlarmEnabled(settings) && !exactAlarmPrompted) {
+    exactAlarmPrompted = true;
+    try {
+      await notifee.openAlarmPermissionSettings();
+      // The user may have just granted it — re-read instead of assuming
+      settings = await notifee.getNotificationSettings();
+    } catch (err) {
+      console.warn('Could not open the exact alarm settings screen:', err);
+    }
+  }
+
+  if (isExactAlarmEnabled(settings)) {
+    return AlarmType.SET_ALARM_CLOCK;
+  }
+
+  console.warn(
+    'Exact alarm permission is restricted — scheduling the rest-timer alert on the inexact fallback path.'
+  );
+  return null;
+}
 
 /**
  * Initializes the rest-timer notification path. Safe to call once at app
@@ -36,6 +94,14 @@ export async function initNotifee(): Promise<void> {
       sound: 'default',
       vibration: true,
     });
+
+    // Log (but do not force a redirect for) a restricted exact-alarm state, so
+    // the inexact fallback is an active decision rather than a silent failure
+    if (!isExactAlarmEnabled(settings)) {
+      console.warn(
+        'Exact alarms are disabled — rest-timer alerts will use inexact scheduling until enabled in system settings.'
+      );
+    }
   } catch (err) {
     // Notifee is a native module and requires a development build. If it is
     // unavailable (e.g. Expo Go), degrade gracefully instead of crashing.
@@ -57,6 +123,9 @@ export async function scheduleRestTimerNotification(seconds: number): Promise<st
       console.warn('Skipping rest-timer schedule — notifications not authorized.');
       return null;
     }
+
+    // Exact alarms when granted, inexact WorkManager scheduling otherwise
+    const alarmType = await resolveRestTimerAlarmType();
 
     restTimerSequence += 1;
     // Unique per-run id. The timestamp makes collisions impossible even across
@@ -84,10 +153,15 @@ export async function scheduleRestTimerNotification(seconds: number): Promise<st
         // SET_ALARM_CLOCK is Android's strongest alarm primitive (same one the
         // system clock app uses): it wakes the device in Doze mode and survives
         // aggressive OEM battery killers, so the alert fires even with the app
-        // fully backgrounded or killed.
-        alarmManager: {
-          type: AlarmType.SET_ALARM_CLOCK,
-        },
+        // fully backgrounded or killed. When the exact-alarm permission is
+        // restricted the key is omitted entirely so notifee uses WorkManager.
+        ...(alarmType !== null
+          ? {
+              alarmManager: {
+                type: alarmType,
+              },
+            }
+          : {}),
       }
     );
 

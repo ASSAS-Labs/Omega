@@ -17,26 +17,48 @@ import * as db from '../services/database';
 import { LineChart } from 'react-native-gifted-charts';
 import { convertWeight, formatWeight, roundWeight } from '../services/weightUnitPrefs';
 import { useWeightUnit } from '../hooks/useWeightUnit';
+import StreakHistoryModal from '../components/StreakHistoryModal';
+import {
+  aggregateProgressByRange,
+  computeChartMaxValue,
+  AnalyticsMetric,
+  AnalyticsRange,
+  SessionProgressPoint,
+} from '../utils/analyticsCalculations';
 
-interface ProgressPoint {
-  date: string;
-  maxWeight: number;
-  totalVolume: number;
-}
+type ProgressPoint = SessionProgressPoint;
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 // Card inner width: screen - screen padding (lg*2) - card padding (md*2) - borders (2)
 const CHART_WIDTH = SCREEN_WIDTH - SPACING.lg * 2 - SPACING.md * 2 - 2;
 const FULLSCREEN_CHART_WIDTH = SCREEN_WIDTH - 40;
 
+// Filter pills, left to right
+const RANGE_TABS: AnalyticsRange[] = ['week', 'session', 'month'];
+
+/** Two-line x-axis label: primary window text over its apostrophe year. */
+function StackedAxisLabel({ label, yearLabel }: { label: string; yearLabel: string }) {
+  return (
+    <View style={styles.axisLabelBox}>
+      <Text style={styles.axisLabelPrimary} numberOfLines={2}>
+        {label}
+      </Text>
+      <Text style={styles.axisLabelSecondary} numberOfLines={1}>
+        {yearLabel}
+      </Text>
+    </View>
+  );
+}
+
 export default function AnalyticsScreen() {
   const weightUnit = useWeightUnit();
   const [trackedExercises, setTrackedExercises] = useState<Exercise[]>([]);
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
   const [progressData, setProgressData] = useState<ProgressPoint[]>([]);
-  const [timeRange, setTimeRange] = useState<'session' | 'week' | 'month'>('week');
-  const [metric, setMetric] = useState<'maxWeight' | 'totalVolume'>('maxWeight');
+  const [timeRange, setTimeRange] = useState<AnalyticsRange>('session');
+  const [metric, setMetric] = useState<AnalyticsMetric>('maxWeight');
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [streakHistoryVisible, setStreakHistoryVisible] = useState(false);
   const [bestSet, setBestSet] = useState<{ weight: number; reps: number; e1rm: number } | null>(null);
   const [volumeTrend, setVolumeTrend] = useState({ recentVolume: 0, priorVolume: 0 });
   const [complianceStats, setComplianceStats] = useState({
@@ -64,7 +86,7 @@ export default function AnalyticsScreen() {
 
   useEffect(() => {
     loadAnalytics();
-  }, [selectedExercise, timeRange]);
+  }, [selectedExercise]);
 
   const loadAnalytics = async () => {
     try {
@@ -79,15 +101,9 @@ export default function AnalyticsScreen() {
         ]);
         setBestSet(best);
         setVolumeTrend(trend);
-
-        // Filter or group based on time range if needed
-        let filtered = rawData;
-        if (timeRange === 'week') {
-          filtered = rawData.slice(-7);
-        } else if (timeRange === 'month') {
-          filtered = rawData.slice(-30);
-        }
-        setProgressData(filtered);
+        // Raw per-session rows are stored verbatim; the selected filter pill
+        // aggregates them into chart buckets at render time.
+        setProgressData(rawData);
       } else {
         setProgressData([]);
         setBestSet(null);
@@ -111,18 +127,29 @@ export default function AnalyticsScreen() {
       ? 100
       : 0;
 
+  // Aggregate the raw sessions into chart buckets for the selected filter pill
+  // (SESSION = one point per log, WEEK = Monday-Sunday peak, MONTH = monthly peak)
+  const buckets = aggregateProgressByRange(progressData, timeRange, metric);
+
   // Prepare data for Gifted Charts (values converted to the active unit so
   // the y-axis, grid labels, and data point text all reflect it)
-  const chartData = progressData.map((d, idx) => {
-    const rawValue = metric === 'maxWeight' ? d.maxWeight : d.totalVolume;
-    const value = roundWeight(convertWeight(rawValue, weightUnit));
+  const chartData = buckets.map((bucket) => {
+    const value = roundWeight(convertWeight(bucket.value, weightUnit));
     return {
       value,
-      label: d.date,
+      // Kept as the measured label width source; the rendered label is the
+      // two-line component below.
+      label: bucket.label,
+      labelComponent: () => (
+        <StackedAxisLabel label={bucket.label} yearLabel={bucket.yearLabel} />
+      ),
       color: COLORS.accent,
       dataPointText: metric === 'maxWeight' ? `${value}${weightUnit}` : `${value}`,
     };
   });
+
+  // 30% headroom above the tallest point so floating value labels never clip
+  const chartMaxValue = computeChartMaxValue(chartData.map((d) => d.value));
 
   return (
     <SafeAreaView style={styles.container}>
@@ -141,10 +168,19 @@ export default function AnalyticsScreen() {
               <Text style={styles.metricLabel}>Sessions Completed</Text>
             </View>
             <View style={styles.metricDivider} />
-            <View style={styles.metricBlock}>
-              <Text style={styles.metricValue}>{complianceStats.streak}</Text>
+            <TouchableOpacity
+              style={styles.metricBlock}
+              onPress={() => setStreakHistoryVisible(true)}
+              activeOpacity={0.7}
+              accessibilityLabel="View top streaks"
+              accessibilityRole="button"
+            >
+              <View style={styles.metricValueRow}>
+                <Text style={styles.metricValue}>{complianceStats.streak}</Text>
+                <Ionicons name="flame" size={16} color={COLORS.accentAmber} />
+              </View>
               <Text style={styles.metricLabel}>Current Streak</Text>
-            </View>
+            </TouchableOpacity>
           </View>
 
           {/* Progress Bar */}
@@ -191,11 +227,15 @@ export default function AnalyticsScreen() {
         {/* Graph Card */}
         <View style={styles.chartCard}>
           <View style={styles.chartHeader}>
-            <Text style={styles.selectedExTitle}>
-              {selectedExercise?.name || 'Select Exercise'}
-            </Text>
+            {/* Flexible title column: long exercise names wrap to a 2nd line
+                instead of crowding the metric toggle */}
+            <View style={styles.chartTitleWrap}>
+              <Text style={styles.selectedExTitle} numberOfLines={2} ellipsizeMode="tail">
+                {selectedExercise?.name || 'Select Exercise'}
+              </Text>
+            </View>
 
-            {/* Metric Toggle */}
+            {/* Metric Toggle — pinned top right, never shrinks */}
             <View style={styles.toggleGroup}>
               <TouchableOpacity
                 style={[styles.toggleBtn, metric === 'maxWeight' && styles.toggleBtnActive]}
@@ -246,6 +286,11 @@ export default function AnalyticsScreen() {
                 yAxisColor={COLORS.border}
                 xAxisLabelTextStyle={{ color: COLORS.textMuted, fontSize: 10 }}
                 yAxisTextStyle={{ color: COLORS.textMuted, fontSize: 10 }}
+                // Reserve room for the two-line stacked date labels
+                xAxisTextNumberOfLines={2}
+                xAxisLabelsHeight={40}
+                maxValue={chartMaxValue}
+                overflowTop={30}
                 hideDataPoints={false}
                 dataPointsRadius={5}
                 dataPointsColor={COLORS.accent}
@@ -261,7 +306,7 @@ export default function AnalyticsScreen() {
           {/* Time range selector + Maximize toggle */}
           <View style={styles.chartFooter}>
             <View style={styles.timeRangeRow}>
-              {(['session', 'week', 'month'] as const).map((r) => (
+              {RANGE_TABS.map((r) => (
                 <TouchableOpacity
                   key={r}
                   style={[styles.rangeTab, timeRange === r && styles.rangeTabActive]}
@@ -365,6 +410,11 @@ export default function AnalyticsScreen() {
                 yAxisColor={COLORS.border}
                 xAxisLabelTextStyle={{ color: COLORS.textMuted, fontSize: 11 }}
                 yAxisTextStyle={{ color: COLORS.textMuted, fontSize: 11 }}
+                // Reserve room for the two-line stacked date labels
+                xAxisTextNumberOfLines={2}
+                xAxisLabelsHeight={40}
+                maxValue={chartMaxValue}
+                overflowTop={30}
                 hideDataPoints={false}
                 dataPointsRadius={5}
                 dataPointsColor={COLORS.accent}
@@ -389,6 +439,12 @@ export default function AnalyticsScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Streak history sheet: top 5 streaks of all time */}
+      <StreakHistoryModal
+        visible={streakHistoryVisible}
+        onClose={() => setStreakHistoryVisible(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -428,6 +484,11 @@ const styles = StyleSheet.create({
   },
   metricBlock: {
     alignItems: 'center',
+  },
+  metricValueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   metricValue: {
     fontSize: 22,
@@ -516,20 +577,26 @@ const styles = StyleSheet.create({
   chartHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: SPACING.md,
+  },
+  chartTitleWrap: {
+    flex: 1,
+    marginRight: 12,
   },
   selectedExTitle: {
     fontSize: 15,
     fontWeight: '700',
     color: COLORS.textPrimary,
-    flex: 1,
+    flexWrap: 'wrap',
   },
   toggleGroup: {
     flexDirection: 'row',
     backgroundColor: COLORS.bgSecondary,
     borderRadius: RADIUS.md,
     padding: 2,
+    flexShrink: 0,
+    alignSelf: 'flex-start',
   },
   toggleBtn: {
     paddingHorizontal: 10,
@@ -551,6 +618,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginVertical: SPACING.sm,
+  },
+  axisLabelBox: {
+    width: '100%',
+    alignItems: 'center',
+  },
+  axisLabelPrimary: {
+    fontSize: 10,
+    lineHeight: 13,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+  },
+  axisLabelSecondary: {
+    fontSize: 9,
+    lineHeight: 12,
+    color: COLORS.textMuted,
+    textAlign: 'center',
   },
   emptyChart: {
     height: 220,

@@ -15,11 +15,84 @@ interface RestTimerModalProps {
   onClose: () => void;
 }
 
+// Interactive picker bounds: 0-60 minutes, 0-59 seconds
+const MAX_PICKER_MINUTES = 60;
+const MAX_PICKER_SECONDS = 59;
+
 function formatMs(ms: number): string {
   const totalSec = Math.max(0, Math.round(ms / 1000));
   const m = Math.floor(totalSec / 60);
   const s = totalSec % 60;
   return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+function splitMs(ms: number): { minutes: number; seconds: number } {
+  const totalSec = Math.max(0, Math.round(ms / 1000));
+  return {
+    minutes: Math.min(MAX_PICKER_MINUTES, Math.floor(totalSec / 60)),
+    seconds: totalSec % 60,
+  };
+}
+
+interface StepperColumnProps {
+  label: string;
+  value: number;
+  max: number;
+  disabled: boolean;
+  onChange: (next: number) => void;
+  accessibilityLabel: string;
+}
+
+/** Vertical stepper column: ▲ increments, ▼ decrements, clamped to [0, max]. */
+function StepperColumn({
+  label,
+  value,
+  max,
+  disabled,
+  onChange,
+  accessibilityLabel,
+}: StepperColumnProps) {
+  const step = (delta: number) => {
+    if (disabled) return;
+    onChange(Math.min(max, Math.max(0, value + delta)));
+  };
+
+  return (
+    <View style={[styles.stepper, disabled && styles.stepperDisabled]}>
+      <Text style={styles.stepperLabel}>{label}</Text>
+      <TouchableOpacity
+        style={styles.stepperButton}
+        onPress={() => step(1)}
+        disabled={disabled || value >= max}
+        hitSlop={8}
+        accessibilityLabel={`Increase ${accessibilityLabel}`}
+      >
+        <Ionicons
+          name="chevron-up"
+          size={22}
+          color={disabled || value >= max ? COLORS.textDisabled : COLORS.textPrimary}
+        />
+      </TouchableOpacity>
+
+      <Text style={styles.stepperValue}>
+        {value.toString().padStart(2, '0')}
+      </Text>
+
+      <TouchableOpacity
+        style={styles.stepperButton}
+        onPress={() => step(-1)}
+        disabled={disabled || value <= 0}
+        hitSlop={8}
+        accessibilityLabel={`Decrease ${accessibilityLabel}`}
+      >
+        <Ionicons
+          name="chevron-down"
+          size={22}
+          color={disabled || value <= 0 ? COLORS.textDisabled : COLORS.textPrimary}
+        />
+      </TouchableOpacity>
+    </View>
+  );
 }
 
 export default function RestTimerModal({ visible, onClose }: RestTimerModalProps) {
@@ -35,8 +108,11 @@ export default function RestTimerModal({ visible, onClose }: RestTimerModalProps
   useEffect(() => {
     if (visible) {
       getDefaultRestDurationMs().then((ms) => {
-        setDurationMs(ms);
-        setRemainingMs(ms);
+        // Keep the picker, countdown, and scheduled alert in agreement even if
+        // a preference was stored outside the picker's range
+        const clamped = Math.min(ms, (MAX_PICKER_MINUTES * 60 + MAX_PICKER_SECONDS) * 1000);
+        setDurationMs(clamped);
+        setRemainingMs(clamped);
         setRunning(false);
       });
     }
@@ -83,10 +159,12 @@ export default function RestTimerModal({ visible, onClose }: RestTimerModalProps
   };
 
   const handleStart = () => {
-    const end = Date.now() + remainingMs;
+    // The picker defines the exact target duration for this set
+    const target = Math.max(1, Math.round(remainingMs / 1000));
+    const end = Date.now() + target * 1000;
     endRef.current = end;
     setRunning(true);
-    scheduleAlert(Math.max(1, Math.round(remainingMs / 1000)));
+    scheduleAlert(target);
   };
 
   const handlePause = () => {
@@ -96,10 +174,11 @@ export default function RestTimerModal({ visible, onClose }: RestTimerModalProps
   };
 
   const handleResume = () => {
-    const end = Date.now() + remainingMs;
+    const target = Math.max(1, Math.round(remainingMs / 1000));
+    const end = Date.now() + target * 1000;
     endRef.current = end;
     setRunning(true);
-    scheduleAlert(Math.max(1, Math.round(remainingMs / 1000)));
+    scheduleAlert(target);
   };
 
   const handleRestart = () => {
@@ -116,6 +195,24 @@ export default function RestTimerModal({ visible, onClose }: RestTimerModalProps
     pendingNotificationIdRef.current = null;
     onClose();
   }, [onClose]);
+
+  const { minutes, seconds } = splitMs(remainingMs);
+
+  // Changing the picker retargets the duration for this set. The countdown is
+  // locked while it runs, so a mid-rest change can never desync the alert.
+  const handlePickMinutes = (nextMinutes: number) => {
+    const next = (nextMinutes * 60 + seconds) * 1000;
+    setDurationMs(next);
+    setRemainingMs(next);
+  };
+
+  const handlePickSeconds = (nextSeconds: number) => {
+    const next = (minutes * 60 + nextSeconds) * 1000;
+    setDurationMs(next);
+    setRemainingMs(next);
+  };
+
+  const canStart = remainingMs > 0;
 
   // Clean up if modal dismissed externally
   useEffect(() => {
@@ -137,24 +234,63 @@ export default function RestTimerModal({ visible, onClose }: RestTimerModalProps
             {formatMs(remainingMs)}
           </Text>
 
+          {/* Target duration picker (minutes 0-60 / seconds 0-59) */}
+          <View style={styles.stepperRow}>
+            <StepperColumn
+              label="MIN"
+              value={minutes}
+              max={MAX_PICKER_MINUTES}
+              disabled={running}
+              onChange={handlePickMinutes}
+              accessibilityLabel="rest minutes"
+            />
+            <StepperColumn
+              label="SEC"
+              value={seconds}
+              max={MAX_PICKER_SECONDS}
+              disabled={running}
+              onChange={handlePickSeconds}
+              accessibilityLabel="rest seconds"
+            />
+          </View>
+
           {/* Controls */}
           <View style={styles.controlsRow}>
             {running ? (
-              <TouchableOpacity style={styles.controlBtn} onPress={handlePause}>
+              <TouchableOpacity
+                style={styles.controlBtn}
+                onPress={handlePause}
+                accessibilityLabel="Pause rest timer"
+              >
                 <Ionicons name="pause" size={18} color={COLORS.textPrimary} />
                 <Text style={styles.controlText}>Pause</Text>
               </TouchableOpacity>
             ) : (
-              <TouchableOpacity style={[styles.controlBtn, styles.controlPrimary]} onPress={handleStart}>
-                <Ionicons name="play" size={18} color="#09090b" />
-                <Text style={[styles.controlText, styles.controlTextPrimary]}>Start</Text>
+              <TouchableOpacity
+                style={[styles.controlBtn, styles.controlPrimary, !canStart && styles.controlDisabled]}
+                onPress={handleStart}
+                disabled={!canStart}
+                accessibilityLabel="Start rest timer"
+              >
+                <Ionicons name="play" size={18} color={canStart ? '#09090b' : COLORS.textMuted} />
+                <Text style={[styles.controlText, styles.controlTextPrimary, !canStart && styles.controlTextDisabled]}>
+                  Start
+                </Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity style={styles.controlBtn} onPress={handleRestart}>
+            <TouchableOpacity
+              style={styles.controlBtn}
+              onPress={handleRestart}
+              accessibilityLabel="Restart rest timer"
+            >
               <Ionicons name="refresh" size={18} color={COLORS.textPrimary} />
               <Text style={styles.controlText}>Restart</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.controlBtn, styles.controlDanger]} onPress={handleEnd}>
+            <TouchableOpacity
+              style={[styles.controlBtn, styles.controlDanger]}
+              onPress={handleEnd}
+              accessibilityLabel="End rest timer"
+            >
               <Ionicons name="stop" size={18} color={COLORS.accentRed} />
               <Text style={styles.controlTextDanger}>End</Text>
             </TouchableOpacity>
@@ -191,10 +327,46 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: COLORS.textPrimary,
     fontVariant: ['tabular-nums'],
-    marginBottom: SPACING.lg,
+    marginBottom: SPACING.md,
   },
   countdownDone: {
     color: COLORS.accentGreen,
+  },
+  stepperRow: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+    marginBottom: SPACING.lg,
+  },
+  stepper: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: SPACING.sm,
+    borderRadius: RADIUS.lg,
+    backgroundColor: COLORS.bgSecondary,
+    borderWidth: 1,
+    borderColor: COLORS.borderSubtle,
+  },
+  stepperDisabled: {
+    opacity: 0.6,
+  },
+  stepperLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1,
+    color: COLORS.textMuted,
+  },
+  stepperButton: {
+    width: 44,
+    height: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepperValue: {
+    fontSize: 30,
+    fontWeight: '800',
+    color: COLORS.textPrimary,
+    fontVariant: ['tabular-nums'],
   },
   controlsRow: {
     flexDirection: 'row',
@@ -217,6 +389,10 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.accent,
     borderColor: COLORS.accent,
   },
+  controlDisabled: {
+    backgroundColor: COLORS.bgElevated,
+    borderColor: COLORS.border,
+  },
   controlDanger: {
     backgroundColor: 'rgba(239, 68, 68, 0.12)',
     borderColor: 'rgba(239, 68, 68, 0.35)',
@@ -229,6 +405,9 @@ const styles = StyleSheet.create({
   controlTextPrimary: {
     color: '#09090b',
     fontWeight: '700',
+  },
+  controlTextDisabled: {
+    color: COLORS.textMuted,
   },
   controlTextDanger: {
     fontSize: 13,

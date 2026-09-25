@@ -2,7 +2,8 @@ import * as SQLite from 'expo-sqlite';
 import { DayOfWeek, Exercise, MuscleGroup, WeeklySplitDay, WorkoutLog, WorkoutSet, ExerciseHistory, DailyCompliance } from '../types';
 import { formatISODate } from '../utils/dateUtils';
 
-const DB_NAME = 'gym_tracker.db';
+/** Physical database file name (also used by tests to open the same store). */
+export const DB_NAME = 'gym_tracker.db';
 
 // Pre-populated default muscle groups (exercises are user-created only — empty by default)
 const DEFAULT_MUSCLE_GROUPS: { id: string; name: string }[] = [
@@ -19,21 +20,110 @@ const DEFAULT_MUSCLE_GROUPS: { id: string; name: string }[] = [
 
 let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
+/**
+ * Opens the one connection the whole app shares.
+ *
+ * The *promise* is what gets cached, not the connection: it is assigned before
+ * the first `await`, so every caller that arrives while the connection is still
+ * initializing — Dashboard, Analytics, and Store all fire on mount — awaits the
+ * exact same init instead of racing `openDatabaseAsync` for a second native
+ * handle on the same file. `openDatabaseAsync` builds a fresh `NativeDatabase`
+ * on each call, so parallel opens would contend for the file lock and surface
+ * as `database is locked` (SQLITE_BUSY).
+ *
+ * A failed init clears the cache. Without that, the rejected promise would be
+ * handed to every future caller forever: a single transient open/schema failure
+ * at startup would brick the data layer for the rest of the process lifetime,
+ * with no path back to a working connection.
+ */
 export async function getDB(): Promise<SQLite.SQLiteDatabase> {
   if (!dbPromise) {
     dbPromise = (async () => {
       const db = await SQLite.openDatabaseAsync(DB_NAME);
+      await configureConnection(db);
       await initSchema(db);
       return db;
-    })();
+    })().catch((err) => {
+      // Only clear our own attempt: a later caller may already have installed a
+      // fresh promise while this one was settling.
+      dbPromise = null;
+      throw err;
+    });
   }
   return dbPromise;
 }
 
-async function initSchema(db: SQLite.SQLiteDatabase) {
+/**
+ * Applies the connection-scoped pragmas to a freshly opened connection.
+ *
+ * All three are connection settings rather than properties of the database
+ * file (only the WAL journal mode is remembered in the file itself), so a fresh
+ * launch would otherwise hand every query SQLite's defaults — and those lose a
+ * race between a read and a write with `database is locked` (SQLITE_BUSY):
+ *
+ * - `busy_timeout = 5000` gives SQLite up to 5s to wait for a lock it cannot
+ *   take immediately, instead of rejecting it. Set first so the statements
+ *   below already benefit from it.
+ * - `journal_mode = WAL` lets readers run while a write transaction is open.
+ *   The default rollback journal locks the whole file for the duration of a
+ *   write, so any query in flight at that moment fails instead of waiting.
+ * - `foreign_keys = ON` keeps `ON DELETE CASCADE` working; SQLite defaults it
+ *   to OFF on every new connection, so it has to be re-asserted here or
+ *   cascades silently stop working from the second launch onward.
+ *
+ * Must stay outside any transaction (`journal_mode`/`foreign_keys` are no-ops
+ * inside one) and outside the version guard in `initSchema`, which is skipped
+ * on every launch after the first.
+ */
+async function configureConnection(db: SQLite.SQLiteDatabase) {
   await db.execAsync(`
+    PRAGMA busy_timeout = 5000;
+    PRAGMA journal_mode = WAL;
     PRAGMA foreign_keys = ON;
+  `);
+}
 
+/**
+ * Schema version stamped into `PRAGMA user_version` once the base schema has
+ * been created. Bump this and add a matching migration branch inside
+ * `initSchema` whenever the base schema changes.
+ */
+export const SCHEMA_VERSION = 1;
+
+async function initSchema(db: SQLite.SQLiteDatabase) {
+  // Connection pragmas (foreign keys, WAL, busy timeout) are applied by
+  // `configureConnection` on every open — do not re-issue them here.
+  const versionRow = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version;');
+  const schemaVersion = versionRow?.user_version ?? 0;
+
+  // Version 0 means a brand-new database, or one created before schema
+  // versioning existed: build the base schema, repair any pre-versioning legacy
+  // state, then stamp the version so future launches skip the DDL entirely.
+  if (schemaVersion < SCHEMA_VERSION) {
+    if (schemaVersion === 0) {
+      await createBaseSchema(db);
+      await repairLegacySchema(db);
+    }
+    // Future migrations for already-versioned databases belong here, e.g.
+    // if (schemaVersion === 1) { ...migrate to 2... }
+    await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION};`);
+  }
+
+  // Seed default muscle groups if empty (exercises stay empty — user-created only)
+  const countRes = await db.getFirstAsync<{ count: number }>('SELECT COUNT(*) as count FROM muscle_groups;');
+  if (countRes && countRes.count === 0) {
+    for (const mg of DEFAULT_MUSCLE_GROUPS) {
+      await db.runAsync('INSERT INTO muscle_groups (id, name) VALUES (?, ?);', [mg.id, mg.name]);
+    }
+
+    // No pre-populated routine split — all days start completely empty/unassigned.
+    // The user must explicitly configure their weekly split via Settings > Routine Split.
+  }
+}
+
+/** Creates every base table (idempotent). */
+async function createBaseSchema(db: SQLite.SQLiteDatabase) {
+  await db.execAsync(`
     CREATE TABLE IF NOT EXISTS muscle_groups (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL UNIQUE
@@ -81,7 +171,13 @@ async function initSchema(db: SQLite.SQLiteDatabase) {
       FOREIGN KEY (exercise_id) REFERENCES exercises (id) ON DELETE CASCADE
     );
   `);
+}
 
+/**
+ * Repairs databases created before the unified exercise-library schema landed.
+ * Every step is idempotent and safe to run on an already-correct schema.
+ */
+async function repairLegacySchema(db: SQLite.SQLiteDatabase) {
   // ------------------------------------------------------------------
   // Migration 1: legacy exercises schema (muscle_group_id FK) -> unified
   // global library model. Library starts empty by design (user-created only).
@@ -171,17 +267,6 @@ async function initSchema(db: SQLite.SQLiteDatabase) {
       COMMIT;
     `);
     await db.execAsync('PRAGMA foreign_keys = ON;');
-  }
-
-  // Seed default muscle groups if empty (exercises stay empty — user-created only)
-  const countRes = await db.getFirstAsync<{ count: number }>('SELECT COUNT(*) as count FROM muscle_groups;');
-  if (countRes && countRes.count === 0) {
-    for (const mg of DEFAULT_MUSCLE_GROUPS) {
-      await db.runAsync('INSERT INTO muscle_groups (id, name) VALUES (?, ?);', [mg.id, mg.name]);
-    }
-
-    // No pre-populated routine split — all days start completely empty/unassigned.
-    // The user must explicitly configure their weekly split via Settings > Routine Split.
   }
 }
 
@@ -400,6 +485,16 @@ export async function getDayTemplateCounts(): Promise<Record<DayOfWeek, number>>
 export async function deleteWorkoutLogForDate(dateStr: string): Promise<void> {
   const db = await getDB();
   await db.runAsync('DELETE FROM workout_logs WHERE date = ?;', [dateStr]);
+}
+
+// All distinct days with a completed workout (YYYY-MM-DD, ascending).
+// Multiple sessions on the same day collapse into a single entry.
+export async function getCompletedWorkoutDates(): Promise<string[]> {
+  const db = await getDB();
+  const rows = await db.getAllAsync<{ date: string }>(
+    'SELECT DISTINCT date FROM workout_logs WHERE completed = 1 ORDER BY date ASC;'
+  );
+  return rows.map((r) => r.date);
 }
 
 // Previous Session History Lookup

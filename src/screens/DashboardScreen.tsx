@@ -14,6 +14,7 @@ import { COLORS, SPACING, RADIUS } from '../theme/colors';
 import { useAppStore } from '../store/useAppStore';
 import { useTimeSync } from '../hooks/useTimeSync';
 import WorkoutDraftBanner from '../components/WorkoutDraftBanner';
+import StreakHistoryModal from '../components/StreakHistoryModal';
 import { DayOfWeek, WorkoutLog } from '../types';
 import { getWeekDates } from '../utils/dateUtils';
 import * as db from '../services/database';
@@ -34,13 +35,15 @@ export default function DashboardScreen({
   onNavigateSplitSetup,
 }: DashboardScreenProps) {
   const weightUnit = useWeightUnit();
-  const { weeklySplit, muscleGroups, refreshData, workoutSavedVersion } = useAppStore();
+  const { weeklySplit, muscleGroups, refreshData, workoutSavedVersion, isLoading } =
+    useAppStore();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [completedDates, setCompletedDates] = useState<Set<string>>(new Set());
   const [selectedDayLog, setSelectedDayLog] = useState<WorkoutLog | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [streak, setStreak] = useState(0);
   const [confirmDeleteVisible, setConfirmDeleteVisible] = useState(false);
+  const [streakHistoryVisible, setStreakHistoryVisible] = useState(false);
 
   const weekDates = getWeekDates(new Date());
 
@@ -92,9 +95,15 @@ export default function DashboardScreen({
     }
   }, [selectedDate]);
 
+  // The screen's reads only start once the store has finished initializing.
+  // `initStore` is what opens the shared connection, applies its pragmas, builds
+  // or repairs the schema and seeds the muscle groups — all of that runs as
+  // writes on the same connection, so a dashboard query issued during that
+  // window contends with schema setup and surfaces as `database is locked`.
   useEffect(() => {
+    if (isLoading) return;
     loadData();
-  }, [loadData, selectedDate, workoutSavedVersion]);
+  }, [isLoading, loadData, selectedDate, workoutSavedVersion]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -138,10 +147,16 @@ export default function DashboardScreen({
         {/* Top App Header */}
         <View style={styles.header}>
           <Text style={styles.appTitle}>OMEGA</Text>
-          <View style={styles.streakBadge}>
+          <TouchableOpacity
+            style={styles.streakBadge}
+            onPress={() => setStreakHistoryVisible(true)}
+            activeOpacity={0.7}
+            accessibilityLabel="View top streaks"
+            accessibilityRole="button"
+          >
             <Ionicons name="flame" size={18} color={COLORS.accentAmber} />
             <Text style={styles.streakText}>{streak} Day Streak</Text>
-          </View>
+          </TouchableOpacity>
         </View>
 
         {/* Crash-recovery banner: unfinalized workout draft */}
@@ -306,6 +321,12 @@ export default function DashboardScreen({
           </View>
         )}
       </ScrollView>
+
+      {/* Streak history sheet: top 5 streaks of all time */}
+      <StreakHistoryModal
+        visible={streakHistoryVisible}
+        onClose={() => setStreakHistoryVisible(false)}
+      />
 
       {/* Modal: Delete / Reset Completed Workout Confirmation */}
       <Modal
