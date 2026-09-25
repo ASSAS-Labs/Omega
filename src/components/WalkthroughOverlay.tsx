@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -6,14 +6,12 @@ import {
   TouchableOpacity,
   Modal,
   Animated,
-  Dimensions,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, RADIUS } from '../theme/colors';
 
 const STORAGE_KEY = '@has_completed_walkthrough';
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface WalkthroughStep {
   /** Tab to navigate to before showing this step */

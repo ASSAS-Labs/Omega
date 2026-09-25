@@ -31,13 +31,6 @@ export const COLORS = {
   chartGrid: '#27272a',
 };
 
-export const FONTS = {
-  regular: 'System',
-  medium: 'System',
-  semibold: 'System',
-  bold: 'System',
-};
-
 export const SPACING = {
   xs: 4,
   sm: 8,

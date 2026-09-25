@@ -66,9 +66,4 @@ export function __resetFileSystem(): void {
   virtualFiles.clear();
 }
 
-/** Test helper: reads a virtual file directly by uri. */
-export function __readFile(uri: string): string | undefined {
-  return virtualFiles.get(uri);
-}
-
 export default { File, Directory, Paths };

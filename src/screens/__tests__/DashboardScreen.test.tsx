@@ -3,7 +3,6 @@
  * all-time streak history sheet. The data layer runs against the manual
  * `expo-sqlite` mock (in-memory SQLite), so the rendered numbers are real.
  */
-import React from 'react';
 import { Text } from 'react-native';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import DashboardScreen from '../DashboardScreen';

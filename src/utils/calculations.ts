@@ -3,11 +3,6 @@ export type WeightUnit = 'kg' | 'lbs';
 export const KG_PER_LB = 0.45359237; // 1 lb = 0.45359237 kg
 export const LBS_PER_KG = 1 / KG_PER_LB; // 1 kg ≈ 2.20462262 lbs
 
-export interface ExerciseSet {
-  weight: number;
-  reps: number;
-}
-
 /**
  * Calculates the total training volume from an array of sets.
  * Total Volume = Sum of (Weight * Reps) for each set.

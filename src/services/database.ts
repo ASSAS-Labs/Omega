@@ -1,5 +1,5 @@
 import * as SQLite from 'expo-sqlite';
-import { DayOfWeek, Exercise, MuscleGroup, WeeklySplitDay, WorkoutLog, WorkoutSet, ExerciseHistory, DailyCompliance } from '../types';
+import { DayOfWeek, Exercise, MuscleGroup, WorkoutLog } from '../types';
 import { formatISODate } from '../utils/dateUtils';
 
 /** Physical database file name (also used by tests to open the same store). */

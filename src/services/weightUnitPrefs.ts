@@ -5,8 +5,6 @@ const DEFAULT_UNIT = 'kg';
 
 export type WeightUnit = 'kg' | 'lbs';
 
-const KG_PER_LB = 0.45359237; // 1 lb = 0.45359237 kg
-
 // In-memory cached unit so screens can read it synchronously and react to
 // changes via useSyncExternalStore without a full app restart.
 let currentUnit: WeightUnit = DEFAULT_UNIT;

@@ -5,7 +5,6 @@
  * and the `@notifee/react-native` scheduling call that receives the picked
  * duration.
  */
-import React from 'react';
 import { Text } from 'react-native';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import RestTimerModal from '../RestTimerModal';
@@ -77,7 +76,7 @@ function isDisabled(tree: ReactTestRenderer, accessibilityLabel: string): boolea
   return tree.root.findByProps({ accessibilityLabel }).props.disabled === true;
 }
 
-function scheduledTrigger(tree: ReactTestRenderer) {
+function scheduledTrigger() {
   const calls = notifee().default.createTriggerNotification.mock.calls;
   expect(calls).toHaveLength(1);
   return calls[0][1] as {
@@ -196,7 +195,7 @@ describe('RestTimerModal', () => {
       const beforeStart = Date.now();
       await tap(tree, 'Start rest timer');
 
-      const trigger = scheduledTrigger(tree);
+      const trigger = scheduledTrigger();
       expect(trigger.timestamp).toBeGreaterThanOrEqual(beforeStart + 165_000);
       expect(trigger.timestamp).toBeLessThanOrEqual(Date.now() + 165_000);
       expect(trigger.alarmManager?.type).toBe(notifee().AlarmType.SET_ALARM_CLOCK);

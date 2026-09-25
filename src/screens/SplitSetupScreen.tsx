@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -17,7 +17,7 @@ import { DAYS_OF_WEEK } from '../utils/dateUtils';
 
 export default function SplitSetupScreen() {
   const insets = useSafeAreaInsets();
-  const { weeklySplit, muscleGroups, updateSplit, isLoading } = useAppStore();
+  const { weeklySplit, muscleGroups, updateSplit } = useAppStore();
   const [localSplit, setLocalSplit] = useState<Record<DayOfWeek, string[]>>(weeklySplit);
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>('Monday');
 

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, RADIUS } from '../theme/colors';
@@ -171,14 +171,6 @@ export default function RestTimerModal({ visible, onClose }: RestTimerModalProps
     setRunning(false);
     cancelRestTimerNotification(pendingNotificationIdRef.current);
     pendingNotificationIdRef.current = null;
-  };
-
-  const handleResume = () => {
-    const target = Math.max(1, Math.round(remainingMs / 1000));
-    const end = Date.now() + target * 1000;
-    endRef.current = end;
-    setRunning(true);
-    scheduleAlert(target);
   };
 
   const handleRestart = () => {

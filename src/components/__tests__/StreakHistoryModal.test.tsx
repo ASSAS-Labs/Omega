@@ -5,7 +5,6 @@
  * manual `expo-sqlite` mock backed by in-memory SQLite) and assert what the
  * user actually sees: ranked streak rows plus the prompt for vacant positions.
  */
-import React from 'react';
 import { Text } from 'react-native';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import StreakHistoryModal from '../StreakHistoryModal';

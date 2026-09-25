@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -73,7 +73,7 @@ export default function ActiveWorkoutScreen() {
 
   const [exerciseLogs, setExerciseLogs] = useState<ActiveExerciseLog[]>([]);
   const [templateItems, setTemplateItems] = useState<TemplateExerciseItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [, setIsLoading] = useState(true);
 
   // Edit / Delete mode state — toggled by the header "-" button
   const [isEditMode, setIsEditMode] = useState(false);
