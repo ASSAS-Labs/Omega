@@ -343,6 +343,52 @@ describe('database service', () => {
       expect(counts.Wednesday).toBe(2);
       expect(counts.Friday).toBe(0);
     });
+
+    it('re-orders a stored routine without touching its target sets', async () => {
+      const { db } = await freshDatabase();
+      const bench = await db.addExercise('Bench Press', 'Chest');
+      const fly = await db.addExercise('Cable Fly', 'Chest');
+      const dip = await db.addExercise('Dip', 'Triceps');
+
+      await db.saveDayTemplate('Monday', [
+        { exerciseId: bench.id, targetSets: 4 },
+        { exerciseId: fly.id, targetSets: 3 },
+        { exerciseId: dip.id, targetSets: 2 },
+      ]);
+
+      // The dragged order the routine builder persists on drop
+      await db.updateDayTemplateOrder('Monday', [dip.id, bench.id, fly.id]);
+
+      const template = await db.getDayTemplate('Monday');
+      expect(template.map((t) => [t.exercise.name, t.targetSets])).toEqual([
+        ['Dip', 2],
+        ['Bench Press', 4],
+        ['Cable Fly', 3],
+      ]);
+    });
+
+    it('ignores exercises the routine does not contain when re-ordering', async () => {
+      const { db } = await freshDatabase();
+      const bench = await db.addExercise('Bench Press', 'Chest');
+      const fly = await db.addExercise('Cable Fly', 'Chest');
+      const unsaved = await db.addExercise('Dip', 'Triceps');
+
+      await db.saveDayTemplate('Monday', [
+        { exerciseId: bench.id, targetSets: 3 },
+        { exerciseId: fly.id, targetSets: 3 },
+      ]);
+
+      // `unsaved` was added to the builder but never saved: only the stored rows
+      // are re-ordered, and the row that is not there stays absent
+      await expect(
+        db.updateDayTemplateOrder('Monday', [unsaved.id, fly.id, bench.id])
+      ).resolves.toBeUndefined();
+
+      expect((await db.getDayTemplate('Monday')).map((t) => t.exercise.id)).toEqual([
+        fly.id,
+        bench.id,
+      ]);
+    });
   });
 
   describe('workout set logging', () => {

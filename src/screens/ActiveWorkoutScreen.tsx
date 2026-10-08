@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -13,11 +13,13 @@ import {
   Platform,
   UIManager,
   SectionList,
+  Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { COLORS, SPACING, RADIUS } from '../theme/colors';
+import { SET_COLUMN_WIDTHS, columnGeometry } from '../theme/layout';
 import { useAppStore } from '../store/useAppStore';
 import { Exercise, WorkoutStackParamList } from '../types';
 import * as db from '../services/database';
@@ -28,6 +30,15 @@ import {
 } from '../services/workoutDraftService';
 import { cancelRestTimerNotification } from '../services/notifeeTimerService';
 import RestTimerModal from '../components/RestTimerModal';
+import DragHandle from '../components/DragHandle';
+import PressFeedback from '../components/PressFeedback';
+import {
+  computeDropIndex,
+  computeSlotCenter,
+  DEFAULT_ROW_HEIGHT,
+  moveItem,
+  ROW_GAP,
+} from '../utils/dragReorder';
 import {
   convertWeight,
   formatWeight,
@@ -40,6 +51,16 @@ import { useWeightUnit } from '../hooks/useWeightUnit';
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
+
+/**
+ * Vertical room the absolutely positioned footer needs at the bottom of the
+ * screen: its 24px top padding, the button (16px of padding either side of a
+ * ~20px label) and the 36px + 16px below it — see `styles.footer`. The routine
+ * list stops this far above the bottom edge, so a dragged card is clipped at
+ * the list boundary instead of sliding underneath the "Save Day Routine"
+ * button.
+ */
+export const FOOTER_CLEARANCE = SPACING.lg + 52 + 36 + 16;
 
 interface ActiveSetInput {
   setNumber: number;
@@ -57,6 +78,9 @@ interface TemplateExerciseItem {
   exercise: Exercise;
   targetSets: number;
 }
+
+/** Stable key for the picker's exercise rows. */
+const pickerItemKey = (item: Exercise): string => item.id;
 
 export default function ActiveWorkoutScreen() {
   const navigation = useNavigation<StackNavigationProp<WorkoutStackParamList>>();
@@ -78,11 +102,41 @@ export default function ActiveWorkoutScreen() {
   // Edit / Delete mode state — toggled by the header "-" button
   const [isEditMode, setIsEditMode] = useState(false);
 
+  // Per-card "Delete Mode" for the header set manager (logging mode): while an
+  // exercise id is listed here, that card swaps its "-" for a "✓" and reveals
+  // a delete badge on every set row.
+  const [setDeleteModeIds, setSetDeleteModeIds] = useState<string[]>([]);
+
   // Exercise removal confirmation dialog state
   const [pendingDeleteIndex, setPendingDeleteIndex] = useState<number | null>(null);
 
   // Exercise library picker state (template mode only)
   const [pickerVisible, setPickerVisible] = useState(false);
+
+  // Routine builder drag-to-reorder state (template mode only)
+  const [draggingExerciseId, setDraggingExerciseId] = useState<string | null>(null);
+  // True for exactly as long as a gesture is in flight — set on grab, cleared on
+  // release. Kept apart from `draggingExerciseId`, which outlives the release by
+  // the settle animation: the parent ScrollView has to be locked only while the
+  // finger is down, and has to accept scrolls again the moment the card is
+  // dropped, even though that card is still animating home.
+  const [isDragging, setIsDragging] = useState(false);
+  const dragTranslateY = useRef(new Animated.Value(0)).current;
+  // Index the dragged card currently occupies, the slot it started in, and the
+  // centre it started from — i.e. the anchor the finger-driven offset is
+  // measured against.
+  const draggingRowRef = useRef<{ index: number; startIndex: number; startCenter: number } | null>(
+    null
+  );
+  // Measured card heights by exercise id, so rows of any height can be dragged
+  const rowHeightsRef = useRef<Record<string, number>>({});
+
+  // Mirrors `templateItems` so a gesture that is still in flight always works
+  // off the live order (state updates only land on the next render).
+  const templateItemsRef = useRef(templateItems);
+  useEffect(() => {
+    templateItemsRef.current = templateItems;
+  }, [templateItems]);
 
   // Rest timer modal state (logging mode only)
   const [restTimerVisible, setRestTimerVisible] = useState(false);
@@ -190,7 +244,7 @@ export default function ActiveWorkoutScreen() {
     exerciseLogsRef.current = exerciseLogs;
   }, [exerciseLogs]);
 
-  const flushDraftIfNeeded = () => {
+  const flushDraftIfNeeded = useCallback(() => {
     if (isTemplateMode || finishedRef.current) return;
     const logs = exerciseLogsRef.current;
     const hasInput = logs.some((ex) =>
@@ -204,7 +258,7 @@ export default function ActiveWorkoutScreen() {
       startedAt: draftStartedAtRef.current,
       exerciseLogs: logs,
     });
-  };
+  }, [date, day, isTemplateMode, route.params.dayName]);
 
   // Navigating back (without "Finish & Save") must keep the draft intact so
   // the parent screen can instantly offer Resume / Discard.
@@ -388,27 +442,25 @@ export default function ActiveWorkoutScreen() {
     setExerciseLogs(logs);
   };
 
-  const handleUpdateSet = (
-    exIndex: number,
-    setIndex: number,
-    field: 'weight' | 'reps',
-    value: string
-  ) => {
-    setExerciseLogs((prev) => {
-      const updated = [...prev];
-      const targetEx = { ...updated[exIndex] };
-      const updatedSets = [...targetEx.sets];
-      updatedSets[setIndex] = {
-        ...updatedSets[setIndex],
-        [field]: value,
-      };
-      targetEx.sets = updatedSets;
-      updated[exIndex] = targetEx;
-      return updated;
-    });
-  };
+  const handleUpdateSet = useCallback(
+    (exIndex: number, setIndex: number, field: 'weight' | 'reps', value: string) => {
+      setExerciseLogs((prev) => {
+        const updated = [...prev];
+        const targetEx = { ...updated[exIndex] };
+        const updatedSets = [...targetEx.sets];
+        updatedSets[setIndex] = {
+          ...updatedSets[setIndex],
+          [field]: value,
+        };
+        targetEx.sets = updatedSets;
+        updated[exIndex] = targetEx;
+        return updated;
+      });
+    },
+    []
+  );
 
-  const handleRemoveSet = (exIndex: number, setIndex: number) => {
+  const handleRemoveSet = useCallback((exIndex: number, setIndex: number) => {
     setExerciseLogs((prev) => {
       const updated = [...prev];
       const targetEx = { ...updated[exIndex] };
@@ -419,16 +471,49 @@ export default function ActiveWorkoutScreen() {
       updated[exIndex] = targetEx;
       return updated;
     });
-  };
+  }, []);
+
+  // ---------------- Header set manager (logging mode) ----------------
+  // "+" appends a set row to the card, "−" opens that card's temporary delete
+  // mode, "✓" closes it again and persists the resulting configuration.
+
+  const handleAddSet = useCallback((exIndex: number) => {
+    setExerciseLogs((prev) => {
+      const updated = [...prev];
+      const targetEx = { ...updated[exIndex] };
+      targetEx.sets = [
+        ...targetEx.sets,
+        { setNumber: targetEx.sets.length + 1, weight: '', reps: '' },
+      ];
+      updated[exIndex] = targetEx;
+      return updated;
+    });
+  }, []);
+
+  const handleToggleSetDeleteMode = useCallback((exerciseId: string) => {
+    setSetDeleteModeIds((prev) =>
+      prev.includes(exerciseId) ? prev.filter((id) => id !== exerciseId) : [...prev, exerciseId]
+    );
+  }, []);
+
+  const handleDoneSetDeleteMode = useCallback(
+    (exerciseId: string) => {
+      setSetDeleteModeIds((prev) => prev.filter((id) => id !== exerciseId));
+      // "Done" is an explicit save point: persist the current set configuration
+      // right away instead of waiting for the debounced draft flush.
+      flushDraftIfNeeded();
+    },
+    [flushDraftIfNeeded]
+  );
 
   // Open the custom removal confirmation dialog for an exercise
-  const handleRemoveExerciseRequest = (exIndex: number) => {
+  const handleRemoveExerciseRequest = useCallback((exIndex: number) => {
     setPendingDeleteIndex(exIndex);
-  };
+  }, []);
 
-  const handleCancelRemoveExercise = () => {
+  const handleCancelRemoveExercise = useCallback(() => {
     setPendingDeleteIndex(null);
-  };
+  }, []);
 
   // Confirm removal — removes the exercise from the session or template
   const handleConfirmRemoveExercise = () => {
@@ -453,16 +538,71 @@ export default function ActiveWorkoutScreen() {
       : null;
 
   // Template mode: add an exercise selected from the global library to the day's routine
-  const handlePickExercise = (ex: Exercise) => {
+  const handlePickExercise = useCallback((ex: Exercise) => {
     setTemplateItems((prev) => {
       if (prev.some((item) => item.exercise.id === ex.id)) return prev; // no duplicates
       return [...prev, { exercise: ex, targetSets: 3 }];
     });
     setPickerVisible(false);
-  };
+  }, []);
+
+  /**
+   * The picker's sections: the library grouped by muscle group, alphabetically
+   * with 'Other' last. Memoized so opening the modal, typing or picking an
+   * exercise no longer rebuilds the grouping (the previous inline IIFE walked
+   * the whole library on every render of the screen).
+   *
+   * The list itself stays a `SectionList`: its sheet is sized by its content
+   * (capped at 75% of the screen), which is the one container FlashList's
+   * absolutely-positioned cells are not designed for — and `SectionList`
+   * already virtualizes, so nothing is gained by swapping it.
+   */
+  const pickerSections = useMemo(() => {
+    const grouped: Record<string, Exercise[]> = {};
+    for (const ex of allExercises) {
+      const key = ex.muscleGroup || 'Other';
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(ex);
+    }
+    return Object.entries(grouped)
+      .sort(([a], [b]) => {
+        if (a === 'Other') return 1;
+        if (b === 'Other') return -1;
+        return a.localeCompare(b);
+      })
+      .map(([title, data]) => ({ title, data }));
+  }, [allExercises]);
+
+  const renderPickerItem = useCallback(
+    ({ item: ex }: { item: Exercise }) => (
+      <TouchableOpacity
+        style={styles.pickerRow}
+        onPress={() => handlePickExercise(ex)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.pickerRowInfo}>
+          <Text style={styles.pickerRowName} numberOfLines={1}>
+            {ex.name}
+          </Text>
+          {ex.muscleGroup ? <Text style={styles.pickerRowMg}>{ex.muscleGroup}</Text> : null}
+        </View>
+        <Ionicons name="add-circle-outline" size={20} color={COLORS.accent} />
+      </TouchableOpacity>
+    ),
+    [handlePickExercise]
+  );
+
+  const renderPickerSectionHeader = useCallback(
+    ({ section: { title } }: { section: { title: string } }) => (
+      <View style={styles.pickerSectionHeader}>
+        <Text style={styles.pickerSectionTitle}>{title}</Text>
+      </View>
+    ),
+    []
+  );
 
   // Template mode: adjust an exercise's target set count (clamped 1-10)
-  const handleUpdateTargetSets = (exIndex: number, delta: number) => {
+  const handleUpdateTargetSets = useCallback((exIndex: number, delta: number) => {
     setTemplateItems((prev) => {
       const updated = [...prev];
       const item = { ...updated[exIndex] };
@@ -470,6 +610,103 @@ export default function ActiveWorkoutScreen() {
       updated[exIndex] = item;
       return updated;
     });
+  }, []);
+
+  // ---------------- Routine builder: drag-to-reorder ----------------
+  // The routine's exercise cards are dragged by their "≡" handle. Every card
+  // reports its height once, and the reorder math (`utils/dragReorder`) turns
+  // the finger travel into the slot the card currently belongs at, so the list
+  // reshuffles live while the card itself stays under the finger.
+
+  /** Measured heights of the routine rows, in the order given. */
+  const routineRowHeights = (items: TemplateExerciseItem[]): number[] =>
+    items.map((item) => rowHeightsRef.current[item.exercise.id] ?? DEFAULT_ROW_HEIGHT);
+
+  const handleRoutineRowLayout = (exerciseId: string, height: number) => {
+    rowHeightsRef.current[exerciseId] = height;
+  };
+
+  const handleDragStart = (exerciseId: string) => {
+    const items = templateItemsRef.current;
+    const index = items.findIndex((item) => item.exercise.id === exerciseId);
+    if (index < 0) return;
+
+    draggingRowRef.current = {
+      index,
+      startIndex: index,
+      startCenter: computeSlotCenter(routineRowHeights(items), index, ROW_GAP),
+    };
+    dragTranslateY.setValue(0);
+    // Lock the surrounding ScrollView for the whole gesture: it must not claim
+    // the vertical responder while a card is in the air, or the drag of a
+    // routine taller than the screen would be swallowed as a scroll.
+    setIsDragging(true);
+    setDraggingExerciseId(exerciseId);
+  };
+
+  const handleDragMove = (deltaY: number) => {
+    const dragging = draggingRowRef.current;
+    if (!dragging) return;
+
+    let items = templateItemsRef.current;
+    const draggedCenter = dragging.startCenter + deltaY;
+    const targetIndex = computeDropIndex(
+      routineRowHeights(items),
+      dragging.index,
+      draggedCenter,
+      ROW_GAP
+    );
+
+    if (targetIndex !== dragging.index) {
+      // `moveItem` hands back a shallow copy, so state is always updated with a
+      // new array: the reordered list React renders and the one the in-flight
+      // gesture keeps reading are never the same object, and no render can be
+      // served a stale index from a mutated-in-place array.
+      items = moveItem(items, dragging.index, targetIndex);
+      dragging.index = targetIndex;
+      // Keep the ref authoritative for the rest of the gesture — the matching
+      // state update is only visible once React re-renders.
+      templateItemsRef.current = items;
+      setTemplateItems(items);
+    }
+
+    // Re-anchor on the slot the card now occupies: the transform is the gap
+    // between the finger-driven centre and that slot's centre.
+    dragTranslateY.setValue(
+      draggedCenter - computeSlotCenter(routineRowHeights(items), dragging.index, ROW_GAP)
+    );
+  };
+
+  const handleDragEnd = () => {
+    // Unlock the list first thing: the finger is off the handle, so scrolling
+    // has to work again immediately, while the card is still settling.
+    setIsDragging(false);
+
+    const dragging = draggingRowRef.current;
+    draggingRowRef.current = null;
+    if (!dragging) return;
+
+    // Settle the card into its slot, then drop the transform with it
+    Animated.spring(dragTranslateY, {
+      toValue: 0,
+      speed: 18,
+      bounciness: 4,
+      useNativeDriver: true,
+    }).start(() => setDraggingExerciseId(null));
+
+    // A tap, or a drag that came back to where it started, leaves the stored
+    // routine alone
+    if (dragging.index === dragging.startIndex) return;
+
+    // Dropping the card is the save point for the order: re-order the routine
+    // already on disk right away, so the new sequence is what the next session
+    // opens with even if the user leaves without pressing "Save Day Routine".
+    // Edits that are still unsaved (added / removed exercises, target sets)
+    // stay as they were.
+    db.updateDayTemplateOrder(
+      day,
+      templateItemsRef.current.map((item) => item.exercise.id)
+    ).catch((err) => console.error('Save error (routine order):', err));
   };
 
   // Template mode: persist the day's routine (exercises + target set counts)
@@ -552,73 +789,105 @@ export default function ActiveWorkoutScreen() {
         </View>
       )}
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        style={[styles.scroll, isTemplateMode && styles.reorderList]}
+        contentContainerStyle={[
+          styles.scrollContent,
+          isTemplateMode && styles.reorderListContent,
+        ]}
+        // A drag owns the vertical axis: the list stops responding to pans for
+        // as long as a card is held, so a routine that is taller than the
+        // screen cannot turn the drag into a scroll, and starts scrolling again
+        // the instant the card is dropped.
+        scrollEnabled={!isDragging}
+      >
         {isTemplateMode ? (
           /* ---------------- Template Mode: Routine Builder (exercises + target sets) ---------------- */
           <>
-            {templateItems.map((item, exIndex) => (
-              <View
-                key={item.exercise.id}
-                style={[
-                  styles.exerciseCard,
-                  isEditMode && styles.exerciseCardEditMode,
-                ]}
-              >
-                {/* Delete Badge (visible in edit mode) */}
-                {isEditMode && (
-                  <TouchableOpacity
-                    style={styles.deleteBadge}
-                    onPress={() => handleRemoveExerciseRequest(exIndex)}
-                    hitSlop={8}
-                    accessibilityLabel={`Remove ${item.exercise.name}`}
-                  >
-                    <Ionicons name="remove" size={16} color="#ffffff" />
-                  </TouchableOpacity>
-                )}
-
-                {/* Exercise Card Header */}
-                <View style={styles.exHeader}>
-                  <View style={styles.exHeaderText}>
-                    <Text style={styles.exName}>{item.exercise.name}</Text>
-                    <Text style={styles.exMuscleGroup}>
-                      {item.exercise.muscleGroup || 'Exercise'}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Target Sets Stepper */}
-                <View style={styles.templateSetsRow}>
-                  <Text style={styles.templateSetsLabel}>TARGET SETS</Text>
-                  <View style={styles.templateStepper}>
+            {templateItems.map((item, exIndex) => {
+              const isDragged = draggingExerciseId === item.exercise.id;
+              return (
+                <Animated.View
+                  key={item.exercise.id}
+                  testID={`routine-card-${item.exercise.id}`}
+                  onLayout={(event) =>
+                    handleRoutineRowLayout(item.exercise.id, event.nativeEvent.layout.height)
+                  }
+                  style={[
+                    styles.exerciseCard,
+                    isEditMode && styles.exerciseCardEditMode,
+                    isDragged && styles.exerciseCardDragging,
+                    // Only the dragged card moves; the rows it passes shift into
+                    // place through the reordered list itself.
+                    isDragged && { transform: [{ translateY: dragTranslateY }] },
+                  ]}
+                >
+                  {/* Delete Badge (visible in edit mode) */}
+                  {isEditMode && (
                     <TouchableOpacity
-                      style={styles.stepperBtn}
-                      onPress={() => handleUpdateTargetSets(exIndex, -1)}
-                      accessibilityLabel={`Decrease target sets for ${item.exercise.name}`}
+                      style={styles.deleteBadge}
+                      onPress={() => handleRemoveExerciseRequest(exIndex)}
+                      hitSlop={8}
+                      accessibilityLabel={`Remove ${item.exercise.name}`}
                     >
-                      <Ionicons name="remove" size={18} color={COLORS.textPrimary} />
+                      <Ionicons name="remove" size={16} color="#ffffff" />
                     </TouchableOpacity>
-                    <Text style={styles.stepperValue}>{item.targetSets}</Text>
-                    <TouchableOpacity
-                      style={styles.stepperBtn}
-                      onPress={() => handleUpdateTargetSets(exIndex, 1)}
-                      accessibilityLabel={`Increase target sets for ${item.exercise.name}`}
-                    >
-                      <Ionicons name="add" size={18} color={COLORS.textPrimary} />
-                    </TouchableOpacity>
+                  )}
+
+                  {/* Exercise Card Header */}
+                  <View style={styles.exHeader}>
+                    <DragHandle
+                      testID={`drag-handle-${item.exercise.id}`}
+                      accessibilityLabel={`Reorder ${item.exercise.name}`}
+                      active={isDragged}
+                      onDragStart={() => handleDragStart(item.exercise.id)}
+                      onDragMove={handleDragMove}
+                      onDragEnd={handleDragEnd}
+                    />
+                    <View style={styles.exHeaderText}>
+                      <Text style={styles.exName}>{item.exercise.name}</Text>
+                      <Text style={styles.exMuscleGroup}>
+                        {item.exercise.muscleGroup || 'Exercise'}
+                      </Text>
+                    </View>
                   </View>
-                </View>
-              </View>
-            ))}
+
+                  {/* Target Sets Stepper */}
+                  <View style={styles.templateSetsRow}>
+                    <Text style={styles.templateSetsLabel}>TARGET SETS</Text>
+                    <View style={styles.templateStepper}>
+                      <PressFeedback
+                        style={styles.stepperBtn}
+                        onPress={() => handleUpdateTargetSets(exIndex, -1)}
+                        accessibilityLabel={`Decrease target sets for ${item.exercise.name}`}
+                      >
+                        <Ionicons name="remove" size={18} color={COLORS.textPrimary} />
+                      </PressFeedback>
+                      <Text style={styles.stepperValue}>{item.targetSets}</Text>
+                      <PressFeedback
+                        style={styles.stepperBtn}
+                        onPress={() => handleUpdateTargetSets(exIndex, 1)}
+                        accessibilityLabel={`Increase target sets for ${item.exercise.name}`}
+                      >
+                        <Ionicons name="add" size={18} color={COLORS.textPrimary} />
+                      </PressFeedback>
+                    </View>
+                  </View>
+                </Animated.View>
+              );
+            })}
           </>
         ) : (
           /* ---------------- Logging Mode: Live Weight/Reps Entry ---------------- */
           exerciseLogs.map((exLog, exIndex) => {
+          // That card's temporary set delete mode (header "−" / "✓" toggle)
+          const isDeleteMode = setDeleteModeIds.includes(exLog.exercise.id);
           return (
             <View
               key={exLog.exercise.id}
               style={[
                 styles.exerciseCard,
-                isEditMode && styles.exerciseCardEditMode,
+                (isEditMode || isDeleteMode) && styles.exerciseCardEditMode,
               ]}
             >
               {/* Delete Badge (visible in edit mode) */}
@@ -633,35 +902,54 @@ export default function ActiveWorkoutScreen() {
                 </TouchableOpacity>
               )}
 
-              {/* Exercise Card Header */}
+              {/* Exercise Card Header + Set Manager (+ / − / ✓) */}
               <View style={styles.exHeader}>
-                <View>
+                <View style={styles.setManagerText}>
                   <Text style={styles.exName}>{exLog.exercise.name}</Text>
                   <Text style={styles.exMuscleGroup}>{exLog.exercise.muscleGroup || 'Exercise'}</Text>
                 </View>
+
+                <View style={styles.setManagerActions}>
+                  <PressFeedback
+                    style={[styles.setManagerBtn, isDeleteMode && styles.setManagerBtnDone]}
+                    onPress={() =>
+                      isDeleteMode
+                        ? handleDoneSetDeleteMode(exLog.exercise.id)
+                        : handleToggleSetDeleteMode(exLog.exercise.id)
+                    }
+                    hitSlop={6}
+                    accessibilityLabel={
+                      isDeleteMode
+                        ? `Done removing sets from ${exLog.exercise.name}`
+                        : `Remove sets from ${exLog.exercise.name}`
+                    }
+                  >
+                    <Ionicons
+                      name={isDeleteMode ? 'checkmark' : 'remove'}
+                      size={18}
+                      color={isDeleteMode ? COLORS.accentGreen : COLORS.textPrimary}
+                    />
+                  </PressFeedback>
+                  <PressFeedback
+                    style={styles.setManagerBtn}
+                    onPress={() => handleAddSet(exIndex)}
+                    hitSlop={6}
+                    accessibilityLabel={`Add set to ${exLog.exercise.name}`}
+                  >
+                    <Ionicons name="add" size={18} color={COLORS.accent} />
+                  </PressFeedback>
+                </View>
               </View>
 
-              {/* Previous Session Info Banner */}
-              <View style={styles.prevSessionBox}>
-                <Ionicons name="time-outline" size={14} color={COLORS.textMuted} />
-                <Text style={styles.prevSessionText}>
-                  {exLog.previousSets.length > 0
-                    ? `Prev: ${exLog.previousSets
-                        .map((p) => `${formatWeight(p.weight, weightUnit)} × ${p.reps}`)
-                        .join(' | ')}`
-                    : 'Previous session: No historical data recorded'}
-                </Text>
-              </View>
-
-              {/* Column Headers */}
+              {/* Column Headers — same SET_COLUMN_WIDTHS tokens as the rows below */}
               <View style={styles.tableHeaderRow}>
                 <Text style={[styles.colHeader, styles.colSet]}>SET</Text>
                 <Text style={[styles.colHeader, styles.colPrev]}>PREVIOUS</Text>
-                <Text style={[styles.colHeader, styles.colInput]}>
+                <Text style={[styles.colHeader, styles.colWeight]}>
                   WEIGHT ({weightUnit.toUpperCase()})
                 </Text>
-                <Text style={[styles.colHeader, styles.colInput]}>REPS</Text>
-                <View style={styles.colDelete} />
+                <Text style={[styles.colHeader, styles.colReps]}>REPS</Text>
+                {isDeleteMode && <View style={styles.colAction} />}
               </View>
 
               {/* Set Input Rows */}
@@ -678,7 +966,7 @@ export default function ActiveWorkoutScreen() {
                       {prevText}
                     </Text>
 
-                    <View style={styles.colInput}>
+                    <View style={styles.colWeight}>
                       <TextInput
                         style={styles.numericInput}
                         keyboardType="numeric"
@@ -693,7 +981,7 @@ export default function ActiveWorkoutScreen() {
                       />
                     </View>
 
-                    <View style={styles.colInput}>
+                    <View style={styles.colReps}>
                       <TextInput
                         style={styles.numericInput}
                         keyboardType="number-pad"
@@ -704,12 +992,17 @@ export default function ActiveWorkoutScreen() {
                       />
                     </View>
 
-                    <TouchableOpacity
-                      style={styles.colDelete}
-                      onPress={() => handleRemoveSet(exIndex, setIndex)}
-                    >
-                      <Ionicons name="close-circle-outline" size={18} color={COLORS.textMuted} />
-                    </TouchableOpacity>
+                    {/* Delete badge: only while this card's delete mode is on */}
+                    {isDeleteMode && (
+                      <PressFeedback
+                        style={styles.colAction}
+                        onPress={() => handleRemoveSet(exIndex, setIndex)}
+                        hitSlop={6}
+                        accessibilityLabel={`Remove set ${setRow.setNumber} from ${exLog.exercise.name}`}
+                      >
+                        <Ionicons name="remove-circle" size={20} color={COLORS.accentRed} />
+                      </PressFeedback>
+                    )}
                   </View>
                 );
               })}
@@ -755,46 +1048,10 @@ export default function ActiveWorkoutScreen() {
             ) : (
               <SectionList
                 style={styles.pickerList}
-                sections={(() => {
-                  const grouped: Record<string, Exercise[]> = {};
-                  for (const ex of allExercises) {
-                    const key = ex.muscleGroup || 'Other';
-                    if (!grouped[key]) grouped[key] = [];
-                    grouped[key].push(ex);
-                  }
-                  // Sort sections alphabetically, with 'Other' at the end
-                  return Object.entries(grouped)
-                    .sort(([a], [b]) => {
-                      if (a === 'Other') return 1;
-                      if (b === 'Other') return -1;
-                      return a.localeCompare(b);
-                    })
-                    .map(([title, data]) => ({ title, data }));
-                })()}
-                keyExtractor={(item) => item.id}
-                renderSectionHeader={({ section: { title } }) => (
-                  <View style={styles.pickerSectionHeader}>
-                    <Text style={styles.pickerSectionTitle}>{title}</Text>
-                  </View>
-                )}
-                renderItem={({ item: ex }) => (
-                  <TouchableOpacity
-                    key={ex.id}
-                    style={styles.pickerRow}
-                    onPress={() => handlePickExercise(ex)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.pickerRowInfo}>
-                      <Text style={styles.pickerRowName} numberOfLines={1}>
-                        {ex.name}
-                      </Text>
-                      {ex.muscleGroup ? (
-                        <Text style={styles.pickerRowMg}>{ex.muscleGroup}</Text>
-                      ) : null}
-                    </View>
-                    <Ionicons name="add-circle-outline" size={20} color={COLORS.accent} />
-                  </TouchableOpacity>
-                )}
+                sections={pickerSections}
+                keyExtractor={pickerItemKey}
+                renderSectionHeader={renderPickerSectionHeader}
+                renderItem={renderPickerItem}
                 stickySectionHeadersEnabled
               />
             )}
@@ -943,6 +1200,18 @@ const styles = StyleSheet.create({
   scroll: {
     flex: 1,
   },
+  // Routine builder: the drag list ends above the footer instead of running
+  // behind it, so a card being dragged is clipped at the list edge and can
+  // never bleed over the "Save Day Routine" button.
+  reorderList: {
+    flex: 1,
+    marginBottom: FOOTER_CLEARANCE,
+  },
+  reorderListContent: {
+    // The viewport already stops clear of the footer, so the content only needs
+    // breathing room from the list's own bottom edge.
+    paddingBottom: SPACING.lg,
+  },
   scrollContent: {
     paddingHorizontal: SPACING.lg,
     paddingTop: 14,
@@ -958,6 +1227,18 @@ const styles = StyleSheet.create({
   },
   exerciseCardEditMode: {
     borderColor: 'rgba(239, 68, 68, 0.45)',
+  },
+  exerciseCardDragging: {
+    // Lifted above its neighbours while it is being dragged: a plain high
+    // zIndex for iOS/the web and a matching elevation for Android, which
+    // stacks siblings by elevation rather than by zIndex.
+    borderColor: COLORS.borderLight,
+    zIndex: 9999,
+    elevation: 10,
+    shadowColor: '#000000',
+    shadowOpacity: 0.45,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
   },
   deleteBadge: {
     position: 'absolute',
@@ -984,34 +1265,44 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
   },
+  setManagerText: {
+    flex: 1,
+    marginRight: 10,
+  },
+  setManagerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 0,
+  },
+  setManagerBtn: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.bgElevated,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  setManagerBtnDone: {
+    backgroundColor: 'rgba(34, 197, 94, 0.12)',
+    borderColor: COLORS.accentGreen,
+  },
   exName: {
     fontSize: 18,
     fontWeight: '700',
     color: COLORS.textPrimary,
-    paddingRight: 24,
   },
   exMuscleGroup: {
     fontSize: 12,
     color: COLORS.accentBlue,
     fontWeight: '600',
   },
-  prevSessionBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: COLORS.bgSecondary,
-    padding: 8,
-    borderRadius: RADIUS.sm,
-    marginBottom: SPACING.md,
-  },
-  prevSessionText: {
-    fontSize: 12,
-    color: COLORS.textMuted,
-    flex: 1,
-  },
   tableHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    columnGap: SET_COLUMN_WIDTHS.columnGap,
     paddingBottom: 6,
     marginBottom: 4,
     borderBottomWidth: 1,
@@ -1022,36 +1313,47 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: COLORS.textMuted,
     letterSpacing: 0.5,
-  },
-  colSet: {
-    width: 36,
+    // Labels sit on the exact centre line of the cell they describe.
     textAlign: 'center',
   },
-  colPrev: {
-    flex: 1,
-    paddingHorizontal: 4,
-  },
-  colInput: {
-    width: 80,
+  // Column geometry is generated from SET_COLUMN_WIDTHS so a header label and
+  // the cell beneath it can never be laid out from different numbers.
+  colSet: {
+    ...columnGeometry(SET_COLUMN_WIDTHS.setNumber),
     alignItems: 'center',
   },
-  colDelete: {
-    width: 30,
+  colPrev: {
+    ...columnGeometry(SET_COLUMN_WIDTHS.previous),
+    alignItems: 'center',
+  },
+  colWeight: {
+    ...columnGeometry(SET_COLUMN_WIDTHS.weight),
+    alignItems: 'center',
+  },
+  colReps: {
+    ...columnGeometry(SET_COLUMN_WIDTHS.reps),
+    alignItems: 'center',
+  },
+  colAction: {
+    ...columnGeometry(SET_COLUMN_WIDTHS.action),
     alignItems: 'center',
   },
   setRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    columnGap: SET_COLUMN_WIDTHS.columnGap,
     paddingVertical: 6,
   },
   cellText: {
     fontSize: 14,
     fontWeight: '600',
     color: COLORS.textSecondary,
+    textAlign: 'center',
   },
   prevCellText: {
     fontSize: 12,
     color: COLORS.textMuted,
+    textAlign: 'center',
   },
   numericInput: {
     backgroundColor: COLORS.bgSecondary,
@@ -1062,7 +1364,8 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     textAlign: 'center',
-    width: 72,
+    // The pill fills its column, so header label and pill share a centre line.
+    width: '100%',
     paddingVertical: 8,
   },
   footer: {

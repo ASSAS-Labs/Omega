@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -16,7 +16,11 @@ import { useTimeSync } from '../hooks/useTimeSync';
 import WorkoutDraftBanner from '../components/WorkoutDraftBanner';
 import StreakHistoryModal from '../components/StreakHistoryModal';
 import { DayOfWeek, WorkoutLog } from '../types';
-import { getWeekDates } from '../utils/dateUtils';
+import {
+  getMonthCalendarGrid,
+  formatMonthYear,
+  WEEKDAY_INITIALS,
+} from '../utils/dateUtils';
 import * as db from '../services/database';
 import { format, isSameDay } from 'date-fns';
 import { convertWeight, roundWeight } from '../services/weightUnitPrefs';
@@ -28,6 +32,16 @@ interface DashboardScreenProps {
   onResumeWorkout: (dateStr: string, dayOfWeek: DayOfWeek) => void;
   onNavigateSplitSetup: () => void;
 }
+
+// Compliance marker geometry. Ionicons draws the checkmark-circle disc across
+// 416 of its 512 glyph units, so the 13px tick that marks a logged day reads as
+// a 10.56px circle. The missed badge is built at that same diameter, and its
+// cross at the share of the disc the tick's own checkmark covers (Ionicons'
+// `close` ink is 0.688em wide, so 7 gives ~46% of the circle) — the two
+// outcomes then read as one marker in opposite colours.
+const MARKER_ICON_SIZE = 13;
+const MARKER_DIAMETER = (MARKER_ICON_SIZE * 416) / 512;
+const MARKER_CROSS_SIZE = 7;
 
 export default function DashboardScreen({
   onStartWorkout,
@@ -45,7 +59,10 @@ export default function DashboardScreen({
   const [confirmDeleteVisible, setConfirmDeleteVisible] = useState(false);
   const [streakHistoryVisible, setStreakHistoryVisible] = useState(false);
 
-  const weekDates = getWeekDates(new Date());
+  // Month grid for the compliance calendar: 4-6 Monday-first weekly rows
+  const today = new Date();
+  const todayStr = formatISODate(today);
+  const monthGrid = getMonthCalendarGrid(today);
 
   // Keep a ref of the currently shown date so the midnight checker can compare
   const selectedDateRef = useRef(selectedDate);
@@ -105,15 +122,15 @@ export default function DashboardScreen({
     loadData();
   }, [isLoading, loadData, selectedDate, workoutSavedVersion]);
 
-  const onRefresh = async () => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await refreshData();
     await loadData();
     setRefreshing(false);
-  };
+  }, [loadData, refreshData]);
 
   // Delete the selected day's logged workout and revert the card to "Start Workout"
-  const handleConfirmDelete = async () => {
+  const handleConfirmDelete = useCallback(async () => {
     try {
       const dateStr = formatISODate(selectedDate);
       await db.deleteWorkoutLogForDate(dateStr);
@@ -125,17 +142,43 @@ export default function DashboardScreen({
       console.error('Error deleting workout log:', err);
       setConfirmDeleteVisible(false);
     }
-  };
+  }, [loadData, selectedDate]);
 
-  const selectedDateStr = formatISODate(selectedDate);
+  const handleOpenStreakHistory = useCallback(() => setStreakHistoryVisible(true), []);
+  const handleCloseStreakHistory = useCallback(() => setStreakHistoryVisible(false), []);
+  const handleOpenDeleteConfirm = useCallback(() => setConfirmDeleteVisible(true), []);
+  const handleCloseDeleteConfirm = useCallback(() => setConfirmDeleteVisible(false), []);
+
+  const selectedDateStr = useMemo(() => formatISODate(selectedDate), [selectedDate]);
   const dayIndex = selectedDate.getDay();
   const daysMap: DayOfWeek[] = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const selectedDayOfWeek = daysMap[dayIndex];
 
-  const assignedMgIds = weeklySplit[selectedDayOfWeek] || [];
-  const assignedMgNames = muscleGroups
-    .filter((mg) => assignedMgIds.includes(mg.id))
-    .map((mg) => mg.name);
+  const assignedMgNames = useMemo(() => {
+    const assignedMgIds = weeklySplit[selectedDayOfWeek] || [];
+    return muscleGroups.filter((mg) => assignedMgIds.includes(mg.id)).map((mg) => mg.name);
+  }, [muscleGroups, selectedDayOfWeek, weeklySplit]);
+
+  /**
+   * Session totals for the selected day: the reps sum and the volume
+   * (Σ weight × reps) both walk every logged set, so they are derived once per
+   * log/unit change instead of on every render of the dashboard.
+   */
+  const sessionTotals = useMemo(() => {
+    if (!selectedDayLog) return null;
+    let totalReps = 0;
+    let totalVolume = 0;
+    for (const s of selectedDayLog.sets) {
+      totalReps += s.reps;
+      totalVolume += s.weight * s.reps;
+    }
+    return {
+      totalSets: selectedDayLog.sets.length,
+      totalReps,
+      // Stored weights are canonical kg; the summary shows the active unit
+      volume: roundWeight(convertWeight(totalVolume, weightUnit)),
+    };
+  }, [selectedDayLog, weightUnit]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -149,7 +192,7 @@ export default function DashboardScreen({
           <Text style={styles.appTitle}>OMEGA</Text>
           <TouchableOpacity
             style={styles.streakBadge}
-            onPress={() => setStreakHistoryVisible(true)}
+            onPress={handleOpenStreakHistory}
             activeOpacity={0.7}
             accessibilityLabel="View top streaks"
             accessibilityRole="button"
@@ -164,56 +207,100 @@ export default function DashboardScreen({
           onResume={(draft) => onResumeWorkout(draft.date, draft.day)}
         />
 
-        {/* Weekly Calendar Track View */}
+        {/* Monthly Compliance Calendar */}
         <View style={styles.calendarCard}>
           <View style={styles.calendarHeader}>
-            <Text style={styles.calendarTitle}>This Week's Compliance</Text>
+            <Text style={styles.calendarTitle}>{formatMonthYear(today)}</Text>
             <TouchableOpacity onPress={onNavigateSplitSetup}>
               <Text style={styles.editSplitLink}>Edit Split</Text>
             </TouchableOpacity>
           </View>
 
-          <View style={styles.weekDaysRow}>
-            {weekDates.map((d) => {
-              const dStr = formatISODate(d);
-              const dayStr = daysMap[d.getDay()];
-              const isSelected = isSameDay(d, selectedDate);
-              const isCompleted = completedDates.has(dStr);
-              const isScheduled = (weeklySplit[dayStr] || []).length > 0;
-              const isCurrentDay = isSameDay(d, new Date());
-
-              return (
-                <TouchableOpacity
-                  key={dStr}
-                  style={[
-                    styles.dayColumn,
-                    isSelected && styles.dayColumnSelected,
-                    isCurrentDay && !isSelected && styles.dayColumnToday,
-                  ]}
-                  onPress={() => setSelectedDate(d)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[styles.dayName, isSelected && styles.dayNameSelected]}>
-                    {format(d, 'EEE').slice(0, 2).toUpperCase()}
-                  </Text>
-                  <Text style={[styles.dayNumber, isSelected && styles.dayNumberSelected]}>
-                    {format(d, 'd')}
-                  </Text>
-
-                  {/* Compliance Indicator */}
-                  <View style={styles.statusDotContainer}>
-                    {isCompleted ? (
-                      <Ionicons name="checkmark-circle" size={14} color={COLORS.accentGreen} />
-                    ) : isScheduled ? (
-                      <View style={[styles.scheduledDot, isSelected && styles.scheduledDotSelected]} />
-                    ) : (
-                      <View style={styles.restDot} />
-                    )}
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
+          {/* Weekday column initials (Monday first) */}
+          <View style={styles.weekdayRow}>
+            {WEEKDAY_INITIALS.map((initial) => (
+              <Text key={initial} style={styles.weekdayInitial}>
+                {initial}
+              </Text>
+            ))}
           </View>
+
+          {/* One row per week; slots outside the month stay empty */}
+          {monthGrid.map((week, weekIndex) => (
+            <View key={`week-${weekIndex}`} testID={`month-week-${weekIndex}`} style={styles.weekRow}>
+              {week.map((day, weekdayIndex) => {
+                if (!day) {
+                  return <View key={`blank-${weekIndex}-${weekdayIndex}`} style={styles.dayCell} />;
+                }
+
+                const dStr = formatISODate(day);
+                const isSelected = isSameDay(day, selectedDate);
+                const isToday = isSameDay(day, today);
+                const isCompleted = completedDates.has(dStr);
+                const isScheduled = (weeklySplit[daysMap[day.getDay()]] || []).length > 0;
+                // A scheduled day that has already passed with nothing logged.
+                // Today is never a miss — it is still open.
+                const isMissed = isScheduled && !isCompleted && dStr < todayStr;
+                const dayLabel = format(day, 'MMMM d');
+
+                return (
+                  <TouchableOpacity
+                    key={dStr}
+                    testID={`month-day-${dStr}`}
+                    style={styles.dayCell}
+                    onPress={() => setSelectedDate(day)}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Select ${dayLabel}, ${
+                      isCompleted
+                        ? 'workout logged'
+                        : isMissed
+                        ? 'workout missed'
+                        : isScheduled
+                        ? 'workout due'
+                        : 'rest day'
+                    }`}
+                  >
+                    <View
+                      style={[
+                        styles.dayNumberPill,
+                        isToday && styles.dayNumberToday,
+                        isSelected && styles.dayNumberSelected,
+                      ]}
+                    >
+                      <Text
+                        style={[styles.dayNumberText, isSelected && styles.dayNumberTextSelected]}
+                      >
+                        {format(day, 'd')}
+                      </Text>
+                    </View>
+
+                    {/* Compliance marker. Every state renders inside the same
+                        fixed-height slot, so the ticks and the dots share one
+                        centre line and rows keep an even height. */}
+                    <View style={styles.dayMarkerSlot}>
+                      {isCompleted ? (
+                        <Ionicons
+                          testID={`month-day-check-${dStr}`}
+                          name="checkmark-circle"
+                          size={MARKER_ICON_SIZE}
+                          color={COLORS.accentGreen}
+                        />
+                      ) : isMissed ? (
+                        <View testID={`month-day-missed-${dStr}`} style={styles.missedBadge}>
+                          <Ionicons name="close" size={MARKER_CROSS_SIZE} color="#ffffff" />
+                        </View>
+                      ) : isScheduled ? (
+                        <View testID={`month-day-due-${dStr}`} style={styles.pendingDot} />
+                      ) : (
+                        <View testID={`month-day-rest-${dStr}`} style={styles.restDot} />
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          ))}
         </View>
 
         {/* Selected Date Focus Card */}
@@ -231,7 +318,7 @@ export default function DashboardScreen({
               {selectedDayLog && (
                 <TouchableOpacity
                   style={styles.deleteLogBtn}
-                  onPress={() => setConfirmDeleteVisible(true)}
+                  onPress={handleOpenDeleteConfirm}
                   hitSlop={6}
                   accessibilityLabel="Delete workout"
                 >
@@ -289,31 +376,23 @@ export default function DashboardScreen({
         </View>
 
         {/* Quick Summary / Summary stats for selected date if logged */}
-        {selectedDayLog && (
+        {selectedDayLog && sessionTotals && (
           <View style={styles.summaryBox}>
             <Text style={styles.summaryTitle}>Session Summary</Text>
             <View style={styles.summaryStatsRow}>
               <View style={styles.summaryStat}>
-                <Text style={styles.summaryStatVal}>{selectedDayLog.sets.length}</Text>
+                <Text style={styles.summaryStatVal}>{sessionTotals.totalSets}</Text>
                 <Text style={styles.summaryStatLbl}>Total Sets</Text>
               </View>
               <View style={styles.summaryStatDivider} />
               <View style={styles.summaryStat}>
-                <Text style={styles.summaryStatVal}>
-                  {selectedDayLog.sets.reduce((acc, s) => acc + s.reps, 0)}
-                </Text>
+                <Text style={styles.summaryStatVal}>{sessionTotals.totalReps}</Text>
                 <Text style={styles.summaryStatLbl}>Total Reps</Text>
               </View>
               <View style={styles.summaryStatDivider} />
               <View style={styles.summaryStat}>
                 <Text style={styles.summaryStatVal}>
-                  {roundWeight(
-                    convertWeight(
-                      selectedDayLog.sets.reduce((acc, s) => acc + s.weight * s.reps, 0),
-                      weightUnit
-                    )
-                  )}{' '}
-                  {weightUnit}
+                  {sessionTotals.volume} {weightUnit}
                 </Text>
                 <Text style={styles.summaryStatLbl}>Volume</Text>
               </View>
@@ -325,7 +404,7 @@ export default function DashboardScreen({
       {/* Streak history sheet: top 5 streaks of all time */}
       <StreakHistoryModal
         visible={streakHistoryVisible}
-        onClose={() => setStreakHistoryVisible(false)}
+        onClose={handleCloseStreakHistory}
       />
 
       {/* Modal: Delete / Reset Completed Workout Confirmation */}
@@ -333,7 +412,7 @@ export default function DashboardScreen({
         visible={confirmDeleteVisible}
         animationType="fade"
         transparent
-        onRequestClose={() => setConfirmDeleteVisible(false)}
+        onRequestClose={handleCloseDeleteConfirm}
       >
         <View style={styles.confirmOverlay}>
           <View style={styles.confirmDialog}>
@@ -348,7 +427,7 @@ export default function DashboardScreen({
             <View style={styles.confirmActions}>
               <TouchableOpacity
                 style={styles.confirmCancelBtn}
-                onPress={() => setConfirmDeleteVisible(false)}
+                onPress={handleCloseDeleteConfirm}
               >
                 <Text style={styles.confirmCancelText}>Cancel</Text>
               </TouchableOpacity>
@@ -412,73 +491,101 @@ const styles = StyleSheet.create({
     padding: SPACING.md,
     borderWidth: 1,
     borderColor: COLORS.border,
-    marginBottom: 20,
+    marginBottom: 0,
   },
   calendarHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.sm,
   },
   calendarTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.textSecondary,
+    fontSize: 15,
+    fontWeight: '700',
+    color: COLORS.textPrimary,
   },
   editSplitLink: {
     fontSize: 13,
     color: COLORS.accentBlue,
     fontWeight: '500',
   },
-  weekDaysRow: {
+  weekdayRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    paddingBottom: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.borderSubtle,
+    marginBottom: 4,
   },
-  dayColumn: {
+  weekdayInitial: {
     flex: 1,
-    alignItems: 'center',
-    paddingVertical: 10,
-    borderRadius: RADIUS.md,
-    gap: 4,
-  },
-  dayColumnSelected: {
-    backgroundColor: COLORS.accent,
-  },
-  dayColumnToday: {
-    borderWidth: 1,
-    borderColor: COLORS.borderLight,
-  },
-  dayName: {
-    fontSize: 11,
-    fontWeight: '600',
+    textAlign: 'center',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
     color: COLORS.textMuted,
   },
-  dayNameSelected: {
-    color: COLORS.bgPrimary,
+  weekRow: {
+    flexDirection: 'row',
   },
-  dayNumber: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.textPrimary,
+  dayCell: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 5,
+    gap: 2,
+  },
+  dayNumberPill: {
+    minWidth: 26,
+    height: 22,
+    paddingHorizontal: 5,
+    borderRadius: RADIUS.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    // Reserved on every cell so rows keep an even height, and so today's ring
+    // stays visible even when today is also the selected day
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+  },
+  dayNumberToday: {
+    borderColor: COLORS.accentBlue,
   },
   dayNumberSelected: {
+    backgroundColor: COLORS.accent,
+  },
+  dayNumberText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.textPrimary,
+  },
+  dayNumberTextSelected: {
     color: COLORS.bgPrimary,
+    fontWeight: '700',
   },
-  statusDotContainer: {
-    height: 16,
-    justifyContent: 'center',
+  // Every marker renders inside this slot: one shared height and centre line, so
+  // the tick and the dots sit on the same axis and rows never change height
+  // depending on what a day happens to show.
+  dayMarkerSlot: {
+    height: MARKER_ICON_SIZE,
     alignItems: 'center',
-    marginTop: 2,
+    justifyContent: 'center',
   },
-  scheduledDot: {
+  // Missed day: the tick's own circle at the tick's own diameter, red with a
+  // white cross instead of green with a checkmark.
+  missedBadge: {
+    width: MARKER_DIAMETER,
+    height: MARKER_DIAMETER,
+    borderRadius: MARKER_DIAMETER / 2,
+    backgroundColor: COLORS.accentRed,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  /** Day the split schedules that is still open (today and the days after it). */
+  pendingDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
     backgroundColor: COLORS.textMuted,
   },
-  scheduledDotSelected: {
-    backgroundColor: COLORS.bgPrimary,
-  },
+  /** Rest day: nothing expected, so the faintest possible marker. */
   restDot: {
     width: 4,
     height: 4,
@@ -491,6 +598,8 @@ const styles = StyleSheet.create({
     padding: SPACING.md,
     borderWidth: 1,
     borderColor: COLORS.border,
+    // Clear breathing room below the compliance calendar
+    marginTop: 24,
     marginBottom: 20,
     overflow: 'hidden',
   },

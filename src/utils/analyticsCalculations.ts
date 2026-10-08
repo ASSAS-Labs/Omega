@@ -26,9 +26,9 @@ export interface ChartBucket {
 }
 
 /**
- * Maximum number of buckets plotted at once. The chart is rendered at a fixed
- * width without horizontal scrolling, so it fits roughly 8 points at the
- * minimum spacing of 35px — more than that would overlap and clip.
+ * Maximum number of buckets plotted at once. The chart pans horizontally, so
+ * this is a legibility/render-cost bound rather than a fit constraint: the most
+ * recent 8 sessions (or weeks/months) are plotted, older ones are dropped.
  */
 export const MAX_CHART_BUCKETS = 8;
 
@@ -147,4 +147,117 @@ export function aggregateProgressByRange(
 export function computeChartMaxValue(values: number[]): number {
   const rawMax = Math.max(...(values.length > 0 ? values : [0]), 10);
   return Math.ceil(rawMax * 1.3);
+}
+
+// ---------------- Progression chart geometry ----------------
+
+/** Horizontal room a single plotted session needs (point + stacked date label). */
+export const CHART_POINT_WIDTH = 64;
+
+/** Width of the frozen y-axis label lane drawn beside the scrollable plot. */
+export const Y_AXIS_LANE_WIDTH = 40;
+
+/** Gutter on each side of the series, so the end date labels stay in frame. */
+export const CHART_EDGE_GUTTER = 36;
+
+/** Line box of one y-axis tick (ticks are vertically centred on their rule). */
+export const Y_AXIS_TICK_LINE_HEIGHT = 14;
+
+/**
+ * How far the bottom tick's line box reaches below the baseline: the "0" label
+ * is centred on the baseline, so half of its box hangs underneath it. The lane
+ * has to be this much taller than the plot or the label gets clipped.
+ */
+export const Y_AXIS_BASELINE_TICK_OVERHANG = Y_AXIS_TICK_LINE_HEIGHT / 2;
+
+/**
+ * Distance the x-axis date labels are pushed below the axis line
+ * (`xAxisLabelsVerticalShift`), keeping them clear of the baseline and of the
+ * "0" tick sitting on it.
+ */
+export const X_AXIS_LABELS_VERTICAL_SHIFT = 8;
+
+/**
+ * Extra spacing between the axis line and the stacked date labels
+ * (`labelsExtraHeight`).
+ *
+ * This is the top-level knob for label-to-axis distance in this version of
+ * `react-native-gifted-charts`: `labelsDistanceFromXaxis` only exists inside
+ * the secondary-axis configuration, so the primary axis is spaced with
+ * `labelsExtraHeight` instead.
+ */
+export const X_AXIS_LABELS_EXTRA_HEIGHT = 6;
+
+/**
+ * Width of the scrollable progression chart for `pointCount` sessions inside a
+ * `containerWidth`-wide viewport: never narrower than the viewport, and
+ * `CHART_POINT_WIDTH` px per session once the series outgrows it. Sessions are
+ * never squeezed below that budget — the chart extends into a horizontally
+ * pannable area instead, so the newest points cannot clip past the screen edge.
+ */
+export function computeChartWidth(containerWidth: number, pointCount: number): number {
+  return Math.max(containerWidth, pointCount * CHART_POINT_WIDTH);
+}
+
+/**
+ * Distance between two plotted sessions: the series is spread across the whole
+ * plot, `CHART_EDGE_GUTTER` being kept on both sides so the first and last
+ * two-line date labels are never clipped by the chart frame. A plot sized by
+ * `computeChartWidth` therefore always leaves about `CHART_POINT_WIDTH` between
+ * neighbouring points, so they cannot overlap.
+ */
+export function computePointSpacing(plotWidth: number, pointCount: number): number {
+  const usable = Math.max(plotWidth - CHART_EDGE_GUTTER * 2, CHART_POINT_WIDTH);
+  return usable / Math.max(pointCount - 1, 1);
+}
+
+/**
+ * Vertical extent of the plot area inside a chart of `chartHeight`: the library
+ * keeps `height / 20` of headroom above the topmost grid line, so the y-axis
+ * runs from the top of the chart down to `chartHeight + chartHeight / 20`.
+ */
+export function computePlotHeight(chartHeight: number): number {
+  return chartHeight + chartHeight / 20;
+}
+
+/**
+ * Height of the frozen y-axis lane.
+ *
+ * The lane reproduces the library's axis geometry, so its ticks are laid out
+ * against `computePlotHeight` — but it is that much taller than the plot, since
+ * the bottom tick's line box is centred on the baseline and would otherwise be
+ * clipped by the lane's own `overflow: hidden`. The axis line itself is drawn
+ * separately, at exactly `computePlotHeight` tall, so the extra height is label
+ * room only.
+ */
+export function computeYAxisLaneHeight(chartHeight: number): number {
+  return computePlotHeight(chartHeight) + Y_AXIS_BASELINE_TICK_OVERHANG;
+}
+
+export interface YAxisTick {
+  label: string;
+  /** Vertical centre of the tick, measured down from the top of the chart. */
+  centerY: number;
+}
+
+/**
+ * Ticks for the frozen y-axis lane, mirroring the label geometry of the chart
+ * library (which renders `noOfSections + 1` labels from the axis bound down to
+ * 0, each centred on its grid line, the first one `height / 20` below the top).
+ * The lane reproduces them outside the scroll area so the axis stays readable
+ * while the sessions are panned.
+ */
+export function buildYAxisTicks(
+  maxValue: number,
+  noOfSections: number,
+  chartHeight: number
+): YAxisTick[] {
+  const stepHeight = chartHeight / noOfSections;
+  const stepValue = maxValue / noOfSections;
+  const topInset = chartHeight / 20;
+  return Array.from({ length: noOfSections + 1 }, (_, index) => ({
+    // The library truncates rather than rounds its axis labels
+    label: String(Math.trunc(maxValue - stepValue * index)),
+    centerY: topInset + stepHeight * index,
+  }));
 }

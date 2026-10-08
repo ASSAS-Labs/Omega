@@ -1,4 +1,4 @@
-import { format, parseISO, startOfWeek, addDays } from 'date-fns';
+import { format, parseISO, startOfWeek, addDays, subDays } from 'date-fns';
 import { DayOfWeek } from '../types';
 
 export const DAYS_OF_WEEK: DayOfWeek[] = [
@@ -50,6 +50,42 @@ export function getWeekDates(baseDate: Date = new Date()): Date[] {
   return Array.from({ length: 7 }, (_, i) => addDays(start, i));
 }
 
+/** Column headings of the month grid, Monday first (ISO 8601 week order). */
+export const WEEKDAY_INITIALS = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'] as const;
+
+/** Month + year heading of the month grid, e.g. "October 2026". */
+export function formatMonthYear(baseDate: Date = new Date()): string {
+  return format(baseDate, 'MMMM yyyy');
+}
+
+/**
+ * Lays out a calendar month as 4-6 Monday-first weekly rows.
+ *
+ * Every row holds exactly 7 slots; slots that fall outside the month are
+ * `null`, so a cell's column always matches its weekday and the caller can
+ * render the grid without doing any date arithmetic of its own. The number of
+ * rows is whatever the month needs to be fully covered (4 for a 28-day month
+ * starting on a Monday, 5 otherwise for months of 30/31 days, 6 when a 31-day
+ * month starts on Saturday or Sunday).
+ *
+ * @param baseDate - Any date inside the month to lay out
+ */
+export function getMonthCalendarGrid(baseDate: Date = new Date()): (Date | null)[][] {
+  const firstOfMonth = new Date(baseDate.getFullYear(), baseDate.getMonth(), 1);
+  const daysInMonth = new Date(baseDate.getFullYear(), baseDate.getMonth() + 1, 0).getDate();
+  // Monday = 0 ... Sunday = 6
+  const leadingBlanks = (firstOfMonth.getDay() + 6) % 7;
+  const rowCount = Math.ceil((leadingBlanks + daysInMonth) / 7);
+
+  return Array.from({ length: rowCount }, (_, week) =>
+    Array.from({ length: 7 }, (_, weekday) => {
+      const dayOfMonth = week * 7 + weekday - leadingBlanks + 1;
+      if (dayOfMonth < 1 || dayOfMonth > daysInMonth) return null;
+      return new Date(baseDate.getFullYear(), baseDate.getMonth(), dayOfMonth);
+    })
+  );
+}
+
 /**
  * Formats a Date object or ISO string to a standard YYYY-MM-DD string.
  */
@@ -93,89 +129,22 @@ export function formatRelativeDate(
 }
 
 /**
- * Calculates the current consecutive workout streak.
+ * True when the split schedules a session on that day.
  *
- * Rules:
- * - Dates are normalized to calendar YYYY-MM-DD days.
- * - Multiple workouts on the same day count as 1 active day.
- * - If the latest workout is today or yesterday (relative to referenceDate), the streak is alive.
- * - If the gap from the reference date to the latest workout is >= 2 days, the streak is reset to 0.
- * - Consecutive workout days increment the streak.
- * - Any gap of >= 2 days between workout sessions terminates the streak.
+ * A split that schedules *nothing* — every day empty or no split configured at
+ * all — means "every calendar day is expected": without that fallback a user who
+ * never set up a routine could never break a streak, and the count would grow
+ * into "total days ever trained" instead.
  */
-export function calculateWorkoutStreak(
-  workoutDates: (string | Date)[],
-  referenceDate?: string | Date
-): number {
-  if (!workoutDates || !Array.isArray(workoutDates) || workoutDates.length === 0) {
-    return 0;
-  }
-
-  const refStr = referenceDate ? formatISODate(referenceDate) : formatISODate(new Date());
-  const refDay = parseISO(refStr);
-
-  // Normalize, filter valid dates, and deduplicate to unique YYYY-MM-DD strings
-  const uniqueDates = Array.from(
-    new Set(
-      workoutDates
-        .filter((d) => Boolean(d))
-        .map((d) => formatISODate(d))
-        .filter((s) => /^\d{4}-\d{2}-\d{2}$/.test(s))
-    )
-  ).sort().reverse(); // Descending order: latest first
-
-  if (uniqueDates.length === 0) {
-    return 0;
-  }
-
-  const mostRecent = parseISO(uniqueDates[0]);
-  const daysDiffFromRef = Math.round((refDay.getTime() - mostRecent.getTime()) / (1000 * 60 * 60 * 24));
-
-  // If the most recent workout is older than yesterday (gap >= 2 days), streak is broken (0).
-  // Note: if mostRecent is in the future or today (diff <= 0) or yesterday (diff == 1), streak is active.
-  if (daysDiffFromRef >= 2) {
-    return 0;
-  }
-
-  let streak = 1;
-  for (let i = 0; i < uniqueDates.length - 1; i++) {
-    const current = parseISO(uniqueDates[i]);
-    const prev = parseISO(uniqueDates[i + 1]);
-    const diffDays = Math.round((current.getTime() - prev.getTime()) / (1000 * 60 * 60 * 24));
-
-    if (diffDays === 1) {
-      streak++;
-    } else if (diffDays > 1) {
-      break;
-    }
-  }
-
-  return streak;
+function isScheduledDay(day: Date, scheduledDays?: DayOfWeek[] | null): boolean {
+  if (!scheduledDays || scheduledDays.length === 0) return true;
+  return scheduledDays.includes(DAYS_OF_WEEK[(day.getDay() + 6) % 7]);
 }
 
-/**
- * Computes every historical workout streak from a list of workout dates.
- *
- * Rules (mirrors `calculateWorkoutStreak`):
- * - Dates are normalized to calendar YYYY-MM-DD days and deduplicated, so
- *   multiple sessions logged on the same day count as a single active day.
- * - Consecutive calendar days extend the running streak.
- * - A gap of >= 2 days between two logged days concludes that streak.
- * - The trailing streak (the most recent one) is concluded the same way, so a
- *   still-running streak is reported at its current length.
- *
- * @param workoutDates - ISO date (or datetime) strings of logged workouts
- * @returns Every streak length, sorted descending (highest first).
- *          An empty array when no valid workout day exists.
- */
-export function calculateAllStreaks(workoutDates: string[]): number[] {
-  if (!workoutDates || !Array.isArray(workoutDates) || workoutDates.length === 0) {
-    return [];
-  }
-
-  // Normalize, drop invalid entries, deduplicate same-day sessions, then sort
-  // ascending (earliest first) so streaks can be walked chronologically.
-  const uniqueDates = Array.from(
+/** Unique, valid `YYYY-MM-DD` workout days, ascending (earliest first). */
+function toUniqueWorkoutDays(workoutDates: (string | Date)[] | null | undefined): string[] {
+  if (!workoutDates || !Array.isArray(workoutDates)) return [];
+  return Array.from(
     new Set(
       workoutDates
         .filter((d) => Boolean(d))
@@ -183,29 +152,102 @@ export function calculateAllStreaks(workoutDates: string[]): number[] {
         .filter((s) => /^\d{4}-\d{2}-\d{2}$/.test(s))
     )
   ).sort();
+}
 
-  if (uniqueDates.length === 0) {
-    return [];
+/**
+ * The one rule both streak figures in the app are measured with (`getComplianceStats`
+ * delegates here, so the Dashboard badge, Analytics and the streak sheet can
+ * never disagree): the length of the run that is still alive on `referenceDate`.
+ *
+ * Rules:
+ * - Dates are normalized to calendar YYYY-MM-DD days, so multiple sessions on
+ *   one day count as a single active day.
+ * - The run walks back day by day from `referenceDate` (today). A day the split
+ *   does not schedule — a rest day — neither adds to the run nor ends it, which
+ *   is what keeps a Mon/Tue/Thu/Fri routine's streak alive across the Wednesday
+ *   off. Days trained *outside* the split still count towards it.
+ * - A scheduled day that passed without a session ends the run. The reference
+ *   day itself is exempt: an untrained today is not a miss yet.
+ * - With no split scheduling anything, every day counts as expected, so the rule
+ *   degrades to "consecutive calendar days".
+ *
+ * @param scheduledDays - Weekdays the split trains; omit/empty to expect daily.
+ */
+export function calculateWorkoutStreak(
+  workoutDates: (string | Date)[],
+  referenceDate?: string | Date,
+  scheduledDays?: DayOfWeek[] | null
+): number {
+  const trainedDays = new Set(toUniqueWorkoutDays(workoutDates));
+  if (trainedDays.size === 0) return 0;
+
+  const refKey = formatISODate(referenceDate ?? new Date());
+  const earliest = parseISO(Array.from(trainedDays).sort()[0]);
+
+  let streak = 0;
+  let cursor = parseISO(refKey);
+  while (cursor >= earliest) {
+    const dayKey = formatISODate(cursor);
+    if (trainedDays.has(dayKey)) {
+      streak++;
+    } else if (dayKey < refKey && isScheduledDay(cursor, scheduledDays)) {
+      break;
+    }
+    cursor = subDays(cursor, 1);
   }
+
+  return streak;
+}
+
+/**
+ * Computes every streak in the history, measured with the same rule as
+ * `calculateWorkoutStreak` — so the run that is still alive comes back at its
+ * current length and can be compared with the all-time bests.
+ *
+ * Rules:
+ * - Dates are normalized to calendar YYYY-MM-DD days and deduplicated, so
+ *   multiple sessions logged on the same day count as a single active day.
+ * - Days trained extend the run; a rest day is skipped.
+ * - A scheduled day that passed without a session concludes the run.
+ * - Days from tomorrow onward never conclude a run, so the trailing run is the
+ *   live streak rather than something an open day ended.
+ *
+ * The split used is the caller's *current* one — it is applied to the whole
+ * history, which is the best available approximation now that past routines are
+ * not stored.
+ *
+ * @param workoutDates - ISO date (or datetime) strings of logged workouts
+ * @returns Every streak length, sorted descending (highest first).
+ *          An empty array when no valid workout day exists.
+ */
+export function calculateAllStreaks(
+  workoutDates: string[],
+  scheduledDays?: DayOfWeek[] | null
+): number[] {
+  const days = toUniqueWorkoutDays(workoutDates);
+  if (days.length === 0) return [];
+
+  const trainedDays = new Set(days);
+  const todayKey = formatISODate(new Date());
+  const lastKey = days[days.length - 1];
+  // A logged day can sit in the future (bad clock, restored backup); it must
+  // still be walked, so the span ends at whichever comes last.
+  const end = parseISO(lastKey > todayKey ? lastKey : todayKey);
 
   const streaks: number[] = [];
-  let currentStreak = 1;
-
-  for (let i = 1; i < uniqueDates.length; i++) {
-    const dayDiff = Math.round(
-      (parseISO(uniqueDates[i]).getTime() - parseISO(uniqueDates[i - 1]).getTime()) /
-        (1000 * 60 * 60 * 24)
-    );
-
-    if (dayDiff === 1) {
-      currentStreak++;
-    } else {
-      // Gap >= 2 days (or a non-consecutive step): the streak concluded.
-      streaks.push(currentStreak);
-      currentStreak = 1;
+  let current = 0;
+  let cursor = parseISO(days[0]);
+  while (cursor <= end) {
+    const dayKey = formatISODate(cursor);
+    if (trainedDays.has(dayKey)) {
+      current++;
+    } else if (dayKey < todayKey && isScheduledDay(cursor, scheduledDays)) {
+      if (current > 0) streaks.push(current);
+      current = 0;
     }
+    cursor = addDays(cursor, 1);
   }
-  streaks.push(currentStreak);
+  if (current > 0) streaks.push(current);
 
   return streaks.sort((a, b) => b - a);
 }

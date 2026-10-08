@@ -1,271 +1,249 @@
 <p align="center">
-  <img src="assets/appicon.jpg" width="128" height="128" style="border-radius: 28px;" alt="Omega Logo" />
+  <img src="assets/omega_hero.jpg" width="100%" alt="Omega — Progressive Overload Tracking" />
+</p>
+
+<p align="center">
+  <img src="assets/appicon.jpg" width="96" height="96" style="border-radius: 22px;" alt="Omega" />
 </p>
 
 <h1 align="center">OMEGA</h1>
 
 <p align="center">
+  <strong>Progressive overload tracking that stays on your device.</strong>
+</p>
+
+<p align="center">
   <a href="https://github.com/ASSAS-Labs/Omega/actions/workflows/ci.yml"><img src="https://github.com/ASSAS-Labs/Omega/actions/workflows/ci.yml/badge.svg" alt="CI Pipeline" /></a>
-  <img src="https://img.shields.io/badge/tests-179%20passed%20%7C%20100%25%20domain%20coverage-brightgreen" alt="Tests" />
-  <img src="https://img.shields.io/badge/typescript-strict%20%7C%200%20errors-blue" alt="TypeScript" />
+  <a href="https://github.com/ASSAS-Labs/Omega/actions/workflows/build-apk.yml"><img src="https://github.com/ASSAS-Labs/Omega/actions/workflows/build-apk.yml/badge.svg" alt="Build APK" /></a>
+  <img src="https://img.shields.io/badge/tests-290%20passed-brightgreen" alt="Tests" />
+  <img src="https://img.shields.io/badge/typescript-strict-blue" alt="TypeScript" />
   <img src="https://img.shields.io/badge/license-PolyForm%20Noncommercial-blue" alt="License" />
 </p>
 
-> **A local-first, privacy-focused workout tracker and progressive overload manager built with React Native, Expo, TypeScript, and SQLite.**
+---
 
-Track workouts, build custom routines, monitor strength progression, and analyze training volume — **without user accounts, advertisements, telemetry, or cloud dependencies.**
+Omega is a local-first workout tracker and progressive overload manager for Android. It stores everything on-device in SQLite — no accounts, no cloud sync, no telemetry. You own your training data, period.
+
+Build custom routines around any split (PPL, Upper/Lower, Arnold, Bro, or fully custom), log sets with previous-session benchmarks visible in real time, and track strength progression through estimated 1RM curves and volume analytics.
 
 ---
 
-## Preview
+## What It Does
 
 <p align="center">
-  <img src="assets/screenshots/01_dashboard.png" width="180" alt="Dashboard and Streak"/>
-  <img src="assets/screenshots/02_exercises-tab.png" width="180" alt="Exercise Library"/>
-  <img src="assets/screenshots/03_settings.png" width="180" alt="Settings and Data Backup"/>
-  <img src="assets/screenshots/04_analytics.png" width="180" alt="Analytics and Progression"/>
+  <img src="assets/screenshots/01_dashboard.png" width="200" alt="Dashboard"/>
+  &nbsp;&nbsp;
+  <img src="assets/screenshots/02_exercises-tab.png" width="200" alt="Exercise Library"/>
+  &nbsp;&nbsp;
+  <img src="assets/screenshots/03_settings.png" width="200" alt="Settings"/>
+  &nbsp;&nbsp;
+  <img src="assets/screenshots/04_analytics.png" width="200" alt="Analytics"/>
 </p>
 
-### Screenshot Gallery
-
-| Screen | File Path | Highlights |
-|---|---|---|
-| **Dashboard & Streak** | `assets/screenshots/01_dashboard.png` | 7-day compliance strip, current day split, interactive streak badge with all-time top-5 streak history modal, one-tap session launch |
-| **Exercise Library** | `assets/screenshots/02_exercises-tab.png` | Global movement catalog, muscle group tagging, instant search, CRUD actions |
-| **Settings & Data Backup** | `assets/screenshots/03_settings.png` | Rest timer configuration, KG/LBS preference toggle, JSON database export and import |
-| **Analytics & 1RM Progression** | `assets/screenshots/04_analytics.png` | Session/week/month progression filters, peak-benchmark aggregation, stacked date axis labels, 30% chart headroom, two-line exercise title wrapping, estimated 1RM calculations |
+| Screen | What you see |
+|---|---|
+| **Dashboard** | Full-month compliance calendar with per-day status markers, today's routine card, streak badge with tap-to-view all-time streak history, and one-tap session launch |
+| **Workout** | Drag-to-reorder routine builder, previous-session benchmarks loaded per exercise, live set logging with weight/reps input and completion tracking |
+| **Exercises** | Searchable movement catalog organized by muscle group, support for custom exercises that integrate across all screens |
+| **Analytics** | Estimated 1RM progression charts, total volume trends, session/week/month granularity toggle, peak-benchmark aggregation, 4-week trend comparison |
+| **Settings** | KG/LBS unit toggle, configurable rest timer with background notifications and haptic alerts, full JSON database export and import for portability |
 
 ---
 
-## Continuous Integration & Quality Assurance
+## Key Capabilities
 
-Every commit and pull request is automatically validated through a GitHub Actions CI pipeline with strict quality gates across 12 test suites and 179 passing automated tests:
+### Local-First Storage
+All data lives in an embedded SQLite database on the device. WAL journaling, foreign-key cascades, busy timeouts, and a singleton connection guard protect against concurrency issues. The schema is versioned with `PRAGMA user_version` migrations. No network calls are made — ever.
+
+### Crash-Resilient Sessions
+Active workout state is continuously persisted to a local draft. If the app is killed mid-session, a recovery banner appears on next launch to resume exactly where you left off. Completing a session writes all sets in a single atomic transaction before clearing the draft.
+
+### Progression Analytics
+The analytics engine buckets logged data by session, ISO week, or calendar month. Charts render estimated 1RM curves (Epley formula) and total volume trends with dynamic headroom calculations so data points never clip the chart boundary. Stacked two-line date labels keep dense timelines readable.
+
+### Workout Rest Timer
+An interactive minute/second picker feeds directly into the rest timer. Countdown notifications are delivered via Notifee even when the app is backgrounded. On Android 13+, exact-alarm permissions are probed and gracefully degraded. Timer completion triggers native haptic feedback.
+
+### Compliance Tracking
+The dashboard renders a Monday-first monthly calendar grid where each day carries a distinct status marker — logged, missed (scheduled but untrained), upcoming, or rest day. Streak calculations respect the configured split: rest days neither extend nor break a streak.
+
+### Data Portability
+The entire database serializes to a human-readable JSON file via the native share sheet. Importing validates schema structure and restores everything inside an atomic database operation. Backup files produced on one device restore cleanly on another.
+
+### Performance
+Exercise catalogs and selection pools use FlashList 2.x cell recycling. Press animations run on the UI thread via Reanimated worklets — only composite properties (scale, opacity) are animated, so no layout reflows occur. Modal transitions are spring-driven with decoupled mount/visibility lifecycles.
+
+---
+
+## Architecture
 
 ```text
-Code Commit / Pull Request
-           │
-           ▼
-     GitHub Actions
-           │
-           ├── 1. Clean Dependency Installation (`npm ci --legacy-peer-deps`)
-           ├── 2. TypeScript Compilation Check (`npx tsc --noEmit`)
-           └── 3. Automated Jest Test Suite (`npm test -- --ci --watchAll=false`)
-                      │
-                      ▼
-               Quality Gate Passed (0 errors / 12 suites / 179 tests passing)
+counterapp/
+  src/
+    components/        Reusable UI (RestTimerModal, StreakHistoryModal, DragHandle, PressFeedback)
+    constants/         Static exercise catalog
+    hooks/             Custom hooks (useTimeSync, useWeightUnit)
+    screens/           Dashboard, Workout, Exercises, Analytics, Settings, SplitSetup
+    services/          SQLite database, backup, notifications, draft persistence, preferences
+    store/             Zustand global state
+    theme/             Color palette, layout tokens, motion constants
+    types/             TypeScript interfaces
+    utils/             Domain math, analytics aggregation, date calculations, drag geometry
+  __mocks__/           Jest manual mocks (real SQLite engine, in-memory FS/storage)
+  plugins/             Expo config plugins (debug symbol stripping)
+  assets/              App icon, screenshots, generated images
 ```
-
-> **Node requirement:** the service test suites execute the real schema on Node's built-in SQLite engine (`node:sqlite`), so tests require **Node.js 22.13+** (CI runs Node 24).
-
-### Verified Test Matrix
-
-| Quality Gate | Verification Command | Scope & Verified Logic | Result |
-|---|---|---|---|
-| **TypeScript Strictness** | `npx tsc --noEmit` | Strict compilation across all screens, hooks, services, components, and types | **0 errors** |
-| **1RM Epley Formula** | `npm test` (`calculations.test.ts`) | $W \times (1 + R/30)$, 1-rep parity, 0-rep guards, high-rep bounds, NaN handling | **Passed** |
-| **Volume Aggregation** | `npm test` (`calculations.test.ts`) | Multi-exercise set summation, malformed set input sanitization | **Passed** |
-| **Weight Unit Conversion** | `npm test` (`calculations.test.ts`) | $1\text{ kg} \approx 2.20462\text{ lbs}$, 1-decimal rounding, reversible round-trip parity | **Passed** |
-| **Streak & Gap Math** | `npm test` (`dateUtils.test.ts`) | Consecutive days, same-day multi-session deduplication, $\ge 2$ day gap resets | **Passed** |
-| **All-Time Streak History** | `npm test` (`dateUtils.test.ts`) | `calculateAllStreaks`: single runs, multi-streak resets, zero workouts, same-day sessions, descending ranking | **Passed** |
-| **Analytics Aggregation & Headroom** | `npm test` (`analyticsCalculations.test.ts`) | SESSION/WEEK/MONTH bucketing, Monday-Sunday ISO weeks, monthly peaks, stacked axis labels, 30% chart headroom (`maxValue = rawMax * 1.30`, `overflowTop = 30`), bucket caps | **Passed** |
-| **Weekly Target Compliance** | `npm test` (`dateUtils.test.ts`) | ISO 8601 week transitions, month and year boundary transitions, target met flags | **Passed** |
-| **Relative Date Formatting** | `npm test` (`dateUtils.test.ts`) | "Today", "Yesterday", "X days ago", ISO string sanitization, fallback formats | **Passed** |
-| **Schema Versioning & Migrations** | `npm test` (`database.test.ts`) | `PRAGMA user_version` stamping (0 -> 1), legacy pre-versioning repair, relaunch idempotency | **Passed** |
-| **Referential Integrity & Cascades** | `npm test` (`database.test.ts`) | Foreign-key cascade enforcement on exercise deletion (`CASCADE DELETE`), orphan prevention, FK-safe split and template writes | **Passed** |
-| **Transactional Writes** | `npm test` (`database.test.ts`) | Routine day insertion/replacement, workout set logging, idempotent re-saves, mid-transaction rollback | **Passed** |
-| **SQLite Concurrency & Retries** | `npm test` (`database.test.ts`, `useAppStore.test.ts`) | WAL journal mode, 5000ms busy timeout, singleton initialization promise with rejection-clearing on boot, writes held back until in-flight store reads settle | **Passed** |
-| **Cold-Start Race Prevention** | `npm test` (`DashboardScreen.test.tsx`, `useAppStore.test.ts`) | Initial screen data fetching gated behind store `isLoading` state, preventing concurrent query collisions during cold start schema initialization | **Passed** |
-| **Crash-Recovery Drafts** | `npm test` (`workoutDraftService.test.ts`) | Draft save/retrieve round-trip, malformed payload rejection, atomic discard vs. debounced auto-save, concurrent hydration | **Passed** |
-| **Backup Portability & Schema Parity** | `npm test` (`backupService.test.ts`) | JSON export/import round-trip parity, strict camelCase schema preservation (`id`, `name`, `muscleGroup`, `createdAt`), malformed/partial payload rejection, rollback on invalid restore | **Passed** |
-| **Alarm Resilience (Android 13+)** | `npm test` (`notifeeTimerService.test.ts`) | Exact-alarm permission probing, single per-session settings redirect, inexact fallback, unique per-run ids, cancellation sweep | **Passed** |
-| **Streak Sheet UI** | `npm test` (`StreakHistoryModal.test.tsx`) | Ranked rows from real logged days, singular/plural day labels, same-day deduplication, dynamic placeholder slots (`"More streaks to come"`), (X) dismissal | **Passed** |
-| **Rest Timer Picker UI** | `npm test` (`RestTimerModal.test.tsx`) | Saved-default loading, interactive minute (0–60) and second (0–59) scroll/stepper clamping, disabled controls while running, exact seconds handed to scheduler | **Passed** |
-| **Dashboard Screen Integration** | `npm test` (`DashboardScreen.test.tsx`) | Header badge renders live streak and triggers all-time streak modal; cold-start data fetch gated behind store `isLoading` state | **Passed** |
-| **Analytics Screen Integration** | `npm test` (`AnalyticsScreen.test.tsx`) | Default `SESSION` view, `WEEK`/`MONTH` re-aggregation, peak benchmarks, stacked date labels, 30% headroom, responsive two-line title wrapping (`numberOfLines={2}`) with unshrinkable metric toggle (`flexShrink: 0`), streak sheet trigger | **Passed** |
-| **Dead-Code & Tree-Shaking** | Verified clean build | Pruned 22 files and 26 dead declarations/unused imports via `refactor/dead-code-prune`, verified with `tsc --noUnusedLocals` and `babel-preset-expo` | **Passed** |
-| **Code Coverage** | `npm test -- --coverage` | Statements/lines/functions: `calculations.ts`, `dateUtils.ts`, `analyticsCalculations.ts` at **100%**; services at **90%+**; all 12 suites green (179 tests) | **Passed** |
-
----
-
-## Core Architecture & Implemented Features
-
-### 1. Local-First SQLite Hardening & Concurrency Protection
-- **Embedded Storage**: All data (exercises, day templates, split definitions, workout sessions, and set entries) is persisted locally via `expo-sqlite`.
-- **Concurrency & WAL Mode**: Eliminates `NativeStatement.finalizeAsync` and `database is locked` runtime collisions by enforcing `PRAGMA journal_mode = WAL;`, `PRAGMA foreign_keys = ON;`, and a 5000ms `busy_timeout` (`PRAGMA busy_timeout = 5000;`).
-- **Singleton Connection Handling**: Hardens connection handling using a singleton initialization promise in `src/services/database.ts` with explicit rejection-clearing to ensure safe retries on interrupted boots without leaving dead lock handles.
-- **Race Condition Prevention**: Cold-start query collisions are eliminated by gating screen data hydration (`DashboardScreen.tsx`) behind the global store's `isLoading` state, preventing concurrent query collisions during cold start schema initialization.
-- **Schema & Seeding Stability**: Retains a strict camelCase relational schema (`id`, `name`, `muscleGroup`, `createdAt`) across `gym_tracker.db` to protect legacy data parity, migration stability, and backup/restore reliability.
-- **Relational Integrity & Cascades**: Foreign-key constraints and cascading rules guarantee safe deletion of exercises without orphaned logs or corrupted routine templates.
-- **Versioned Schema**: Initialization checks `PRAGMA user_version`; a fresh database builds the base schema, repairs any pre-versioning legacy state, and stamps version `1`, skipping redundant DDL operations on subsequent launches.
-- **Offline-First Operation**: Zero network calls or remote server dependencies; full functionality is available completely offline.
-
-### 2. Active Workout Isolation & Crash Recovery
-- **Real-Time Session Persistence**: Active set inputs, weight, reps, and exercise ordering are continuously persisted to local AsyncStorage draft storage (`@active_workout_draft`).
-- **Crash Recovery Banner**: When returning to the app or navigating screens during an active session, a persistent **"Workout in Progress — [Resume] | [Discard]"** banner allows immediate session recovery, preventing data loss across background app terminations.
-- **Atomic Log Finalization**: Completing a session writes all completed sets into SQLite in a single transaction before purging the working draft.
-
-### 3. Interactive Workout Rest Timer & Background Alerts
-- **Interactive Workout Rest Timer**: Added interactive scroll/stepper controls for minutes (0–60) and seconds (0–59) directly within the active workout session before timer activation, integrating seamlessly with `notifeeTimerService`.
-- **Configurable Countdown**: Minute and second rest intervals customizable per session and stored in persistent preferences.
-- **Robust Background Notifications**: Uses `@notifee/react-native` to reliably schedule and deliver timer completion notifications even when the app is completely backgrounded or closed.
-- **Android 13+ Alarm Resilience**: Exact-alarm capability is probed before every schedule; if the `SCHEDULE_EXACT_ALARM` special-access permission is restricted, the user is routed once per session to the system "Alarms & reminders" screen and the alert automatically falls back to the OS's inexact scheduling path instead of silently failing.
-- **Native Haptic Feedback**: Triggers a 3-pulse vibration pattern on Android (`Vibration.vibrate([0, 400, 200, 400])`) and success haptics on iOS (`expo-haptics`) when the countdown reaches zero.
-
-### 4. Dynamic Unit Conversion & Weekly Split Engine
-- **KG <-> LBS Dynamic Unit Engine**: First-launch onboarding prompt and instantaneous toggle in Settings. Converts canonical database kg storage to display units on the fly across workout logging, historical benchmarks, and progression charts.
-- **Customizable Routine Splits**: Multi-muscle group assignment per day of the week (Monday through Sunday) supporting PPL, Upper/Lower, Arnold Split, Bro Split, or fully custom routines.
-- **Previous Session Benchmarks**: Dynamically fetches and displays the exact weight and rep numbers achieved during the previous workout for each exercise.
-
-### 5. Pre-Seeded Exercise Library & Custom Movements
-- **Pre-populated Pool**: The app ships with a comprehensive pool of standard exercises, fully categorized by muscle groups (Chest, Back, Legs, etc.), allowing users to immediately begin logging without manual data entry.
-- **Custom Exercises**: Users can seamlessly add custom movements directly into the local catalog, which are fully supported across all split assignments, statistics, and workout logs.
-
-### 6. Data Portability (JSON Export & Import)
-- **Full Database Export**: Serializes the entire relational database into a standardized, human-readable JSON schema and opens the native device share sheet via `expo-sharing`.
-- **Validated Restoration**: Imports JSON backup files via `expo-document-picker`, validates schema structure, and restores exercises, splits, templates, and logs within atomic database operations.
-
-### 7. Streak History & Dynamic Progression Analytics
-- **Top Streak Calculation Engine**: Implemented `calculateAllStreaks` in `src/utils/dateUtils.ts` with calendar-day gap analysis and same-day session deduplication to compute all historical runs.
-- **Streak History Modal**: Dedicated `StreakHistoryModal.tsx` presents the "Top 5 Streaks of All Time", with dynamic placeholder slots (`"More streaks to come"`) for unrecorded ranks and plural-safe day labeling.
-- **Interactive Modal Triggers**: Interactive modal triggers on streak badges across both `DashboardScreen` and `AnalyticsScreen` provide instant access to streak history.
-- **Analytics Header & Flex Wrapping**: Resolved UI overflow issues where lengthy exercise titles collided with metric controls by implementing responsive two-line wrapping (`numberOfLines={2}`) alongside an unshrinkable toggle container (`flexShrink: 0`) for `[Max Weight | Volume]`.
-- **Dynamic Analytics Granularity & Chart Headroom**: Reordered and hooked dynamic time grouping to `[ WEEK | SESSION | MONTH ]`, with `SESSION` as default. Dynamic aggregation (`analyticsCalculations.ts`) plots session points or peak weekly/monthly benchmarks. Resolved chart top-border clipping by applying dynamic upper-bound headroom calculations (`maxValue = rawMax * 1.30`, `overflowTop = 30`).
-- **Stacked Date Axis Labels**: Added stacked two-line X-axis date labels via `labelComponent` (e.g., `21 Sep`, `Wk 2 Sep`, `Sep` with `'26` underneath) to maintain visual clarity on dense progression timelines.
-
-### 8. Dead-Code Pruning & Build Footprint Optimization
-- **Tree-Shaking & Cleanup**: Pruned 22 files and stripped 26 dead declarations/unused imports across `src/` via a verified Git branch (`refactor/dead-code-prune`), confirmed with `tsc --noUnusedLocals` and `babel-preset-expo` (dropping unused `React` imports under the modern JSX transform, unreferenced theme tokens, and unused local constants).
-- **ABI Filtering & App Size Reduction**: Integrated `expo-build-properties` with `android.buildArchs: ["arm64-v8a"]`. Configured Gradle `reactNativeArchitectures` to strip redundant 32-bit and PC emulator ABIs (`armeabi-v7a`, `x86`, `x86_64`), reducing download APK size and lowering physical device storage footprint from universal bloat down to a streamlined native installation.
 
 ---
 
 ## Tech Stack
 
-| Layer | Technology | Version | Purpose |
-|---|---|---|---|
-| **Core Framework** | [React Native](https://reactnative.dev/) / [Expo](https://expo.dev/) | RN 0.81 / Expo SDK 54 | Cross-platform mobile foundation |
-| **Language** | [TypeScript](https://www.typescriptlang.org/) | 5.9 | Static type safety and data models |
-| **Database** | [expo-sqlite](https://docs.expo.dev/versions/latest/sdk/sqlite/) | 16.0 | Local embedded relational database |
-| **State Management** | [Zustand](https://github.com/pmndrs/zustand) | 5.0 | Global in-memory UI and catalog state |
-| **Navigation** | [React Navigation](https://reactnavigation.org/) | 7.x | Bottom tabs and native stack routing |
-| **Data Visualization** | [react-native-gifted-charts](https://github.com/Abhinandan-Kushwaha/react-native-gifted-charts) | 1.4 | Progression and volume line charts |
-| **Vector Graphics** | [react-native-svg](https://github.com/software-mansion/react-native-svg) | 15.12 | Chart and visual rendering |
-| **Background Alerts** | [@notifee/react-native](https://notifee.app/) | 9.1 | Exact alarm scheduling and background timer notifications |
-| **Local Draft Storage** | [AsyncStorage](https://react-native-async-storage.github.io/async-storage/) | 2.2 | In-progress workout draft persistence and user preferences |
-| **Build Configuration** | [expo-build-properties](https://docs.expo.dev/versions/latest/sdk/build-properties/) | 1.0 | Native ABI filtering (`arm64-v8a`) and Gradle architecture flags |
-| **Haptics & Vibration** | [expo-haptics](https://docs.expo.dev/versions/latest/sdk/haptics/) | 15.0 | Timer completion feedback |
-| **Date Calculations** | [date-fns](https://date-fns.org/) | 4.1 | ISO 8601 calendar and date arithmetic |
-| **Testing** | [Jest](https://jestjs.io/) / [jest-expo](https://docs.expo.dev/develop/unit-testing/) | Jest 30 | Automated unit testing |
-| **Continuous Integration** | [GitHub Actions](https://github.com/features/actions) | - | Automated linting, typecheck, and unit test CI pipeline |
+| Layer | Technology | Purpose |
+|---|---|---|
+| **Runtime** | React Native 0.81 / Expo SDK 54 | Cross-platform mobile foundation |
+| **Language** | TypeScript 5.9 (strict) | Static type safety |
+| **Database** | expo-sqlite 16.0 | Embedded relational storage |
+| **State** | Zustand 5.0 | Global in-memory UI state |
+| **Navigation** | React Navigation 7.x | Bottom tabs + native stack routing |
+| **Charts** | react-native-gifted-charts 1.4 | Progression line charts |
+| **Notifications** | Notifee 9.1 | Background alarm scheduling |
+| **Animation** | Reanimated 4.1 | UI-thread worklet animations |
+| **Lists** | FlashList 2.0 | Virtualized cell-recycling catalogs |
+| **Testing** | Jest 30 / jest-expo 57 | 290 automated tests across 16 suites |
+| **CI/CD** | GitHub Actions | Typecheck, test, and APK build pipelines |
 
 ---
 
-## Directory Structure
+## Quality Assurance
 
-```text
-counterapp/
-├── __mocks__/                # Jest manual mocks (real SQLite engine, in-memory FS/storage)
-├── assets/
-│   ├── appicon.jpg           # Application branding and launcher icon
-│   └── screenshots/          # Application preview captures
-├── src/
-│   ├── components/           # Reusable UI elements (RestTimerModal, StreakHistoryModal, WorkoutDraftBanner, etc.)
-│   │   └── __tests__/        # Rendered-component behavior suites
-│   ├── constants/            # Static movement catalog (exercisePool.ts)
-│   ├── hooks/                # Custom React hooks (useTimeSync, useWeightUnit)
-│   ├── screens/              # Core application screens
-│   │   ├── __tests__/        # Dashboard and analytics screen integration suites
-│   │   ├── ActiveWorkoutScreen.tsx
-│   │   ├── AnalyticsScreen.tsx
-│   │   ├── DashboardScreen.tsx
-│   │   ├── ExercisesScreen.tsx
-│   │   ├── SettingsScreen.tsx
-│   │   ├── SplitSetupScreen.tsx
-│   │   └── WorkoutDaysScreen.tsx
-│   ├── services/             # Local database, backup, notifications, preferences
-│   │   ├── backupService.ts
-│   │   ├── database.ts
-│   │   ├── notifeeTimerService.ts
-│   │   ├── restTimerPrefs.ts
-│   │   ├── timerAlertService.ts
-│   │   ├── weightUnitPrefs.ts
-│   │   ├── workoutDraftService.ts
-│   │   └── __tests__/        # Service integration suites (SQLite, drafts, backup, alarms)
-│   ├── store/                # Zustand application store
-│   │   └── __tests__/        # Store read/write ordering suite
-│   ├── theme/                # Color palettes and visual constants
-│   ├── types/                # TypeScript interface and type declarations
-│   └── utils/                # Domain math, analytics aggregation, and date calculations
-│       ├── analyticsCalculations.ts
-│       ├── calculations.ts
-│       ├── dateUtils.ts
-│       └── __tests__/        # Jest unit test suites
-├── App.tsx                   # Main entry point and navigation tree
-├── app.json                  # Expo project configuration
-├── eas.json                  # Expo Application Services build configuration
-├── package.json              # Project dependencies and test scripts
-└── tsconfig.json             # TypeScript configuration
+Every commit triggers a CI pipeline that enforces three quality gates before merge:
+
+1. **TypeScript strict compilation** — zero errors across all source files
+2. **290 automated tests** spanning domain math, service integration (real SQLite), and rendered UI assertions
+3. **Coverage targets** — core utilities at 100% statement coverage, services at 90%+
+
+The test suite exercises the real schema on Node's built-in SQLite engine (`node:sqlite`), so foreign keys, cascades, and transaction rollbacks are genuinely enforced during every run — not mocked away.
+
+### What the tests verify
+
+- 1RM Epley formula accuracy, edge cases, and NaN guards
+- Volume aggregation with malformed input sanitization
+- KG/LBS conversion round-trip parity
+- Split-aware streak math (rest days, missed days, same-day deduplication)
+- Analytics bucketing (session, ISO week, month) with chart headroom calculations
+- Drag-reorder midpoint swap geometry with boundary hysteresis
+- Month compliance calendar grid generation and marker state logic
+- Schema versioning, migration idempotency, and cascade enforcement
+- Crash-recovery draft save/retrieve round-trip and concurrent hydration
+- Backup export/import schema parity and rollback on invalid payloads
+- Android 13+ exact-alarm permission probing and fallback paths
+- Full screen integration tests for Dashboard, Analytics, streak sheet, and rest timer picker
+
+---
+
+## Build Pipeline
+
+### CI (Automated on every push and PR)
+
+```
+Commit / Pull Request
+       |
+       v
+  GitHub Actions
+       |
+       +-- npm ci --legacy-peer-deps
+       +-- npx tsc --noEmit
+       +-- npm test -- --ci --watchAll=false
+       |
+       v
+  Quality gate passed
 ```
 
+### Android APK (On-demand via workflow dispatch or release tags)
+
+The `build-apk` workflow compiles a standalone `.apk` directly on GitHub Actions runners, bypassing EAS cloud queues entirely. It runs the same quality gates first, then generates the native Android project via Expo Prebuild and builds a release APK through Gradle.
+
+The compiled APK is uploaded as a downloadable CI artifact (`omega-arm64-release-apk`) with 7-day retention.
+
+```
+Manual dispatch / Release tag (v*)
+       |
+       v
+  Quality gates (typecheck + tests)
+       |
+       v
+  npx expo prebuild --platform android --clean
+       |
+       v
+  ./gradlew assembleRelease --no-daemon
+       |
+       v
+  Upload artifact: omega-arm64-release-apk
+```
+
+To trigger a build: navigate to **Actions** > **Build Android APK** > **Run workflow**.
+
 ---
 
-## Local Development & Testing
+## Getting Started
 
 ### Prerequisites
-- Node.js 22.13+ (Node 24 recommended — the service suites use `node:sqlite`)
-- npm 9+
-- Expo Go application or Android/iOS emulator
 
-### Setup
+- Node.js 22.13+ (service tests use `node:sqlite`)
+- npm 9+
+- Expo Go or an Android emulator
+
+### Install and run
+
 ```bash
-# Clone the repository
 git clone https://github.com/ASSAS-Labs/Omega.git
 cd Omega
-
-# Install project dependencies
 npm install
-```
-
-### Running the App
-```bash
-# Start the Expo development bundler
 npm run start
 ```
-- Press `a` to open on an Android emulator / connected device.
-- Press `i` to open on an iOS simulator.
-- Scan the Metro terminal QR code with Expo Go.
 
-### Executing Tests & Quality Checks
+Press `a` to open on Android, `i` for iOS simulator, or scan the QR code with Expo Go.
+
+### Run tests
+
 ```bash
-# Run TypeScript compilation check
 npx tsc --noEmit
-
-# Run Jest unit test suites with coverage report
 npm test -- --coverage
 ```
 
-The suite is split into three layers:
+### Build an APK locally
 
-- **Domain unit tests** (`src/utils/__tests__/`) — pure date arithmetic, streak math, aggregation, and unit conversion.
-- **Service integration tests** (`src/services/__tests__/`) — exercise the data layer, crash-recovery drafts, backup portability, and notification scheduling. Native modules are replaced by the manual mocks in `__mocks__/`, and the SQLite suites run against a genuine in-memory SQLite engine, so foreign keys, cascades, and transaction rollbacks are really enforced during the run.
-- **UI render suites** (`src/components/__tests__/`, `src/screens/__tests__/`) — render the streak sheet, rest-timer picker, dashboard, and analytics screens with `react-test-renderer` (bundled with `jest-expo`) and assert the text a user actually sees plus the props handed to the chart and notification layers. The progression chart is doubled in tests so its animation timers cannot perturb the run.
+```bash
+npm install -g eas-cli
+eas login
+eas build -p android --profile preview
+```
+
+Or push a release tag to trigger the GitHub Actions APK build workflow:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+### Debug seed data
+
+Development builds populate a fresh database with 52 weeks of training history on first launch (~230 sessions, ~3,300 sets across a five-day split). The seed is deterministic, stops at yesterday, and is automatically purged from release builds. Real user data is never overwritten.
 
 ---
 
-## Build Android APK (EAS Build)
+## Build Optimization
 
-```bash
-# Install EAS CLI
-npm install -g eas-cli
+The release APK is configured for minimal size and maximum performance:
 
-# Authenticate with Expo Application Services
-eas login
-
-# Trigger cloud build for Android APK preview
-eas build -p android --profile preview
-```
+- **ABI filtering**: Only `arm64-v8a` binaries are included, stripping 32-bit and emulator architectures
+- **R8 minification**: Dead code elimination via `enableMinifyInReleaseBuilds`
+- **Resource shrinking**: Unreferenced resources removed via `enableShrinkResourcesInReleaseBuilds`
+- **ProGuard keep rules**: SQLite JSI bindings and Reanimated worklet classes are preserved through explicit keep rules
+- **Debug symbol stripping**: Native `.so` files ship without debug symbols via a local config plugin
 
 ---
 
 ## License
 
-This project is licensed under the **PolyForm Noncommercial License 1.0.0**. You are free to view, clone, fork, and contribute for personal and educational purposes, but commercial use, sales, and monetized distribution are strictly prohibited. See the [LICENSE](LICENSE) file for details.
+This project is licensed under the **PolyForm Noncommercial License 1.0.0**. You may view, clone, fork, and contribute for personal and educational purposes. Commercial use, sales, and monetized distribution are prohibited. See the [LICENSE](LICENSE) file for full terms.

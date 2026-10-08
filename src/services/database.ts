@@ -1,6 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 import { DayOfWeek, Exercise, MuscleGroup, WorkoutLog } from '../types';
-import { formatISODate } from '../utils/dateUtils';
+import { DAYS_OF_WEEK, calculateWorkoutStreak, formatISODate } from '../utils/dateUtils';
+import { DEBUG_SEED_MODE, purgeDebugFixture, seedDebugFixture } from './debugSeed';
 
 /** Physical database file name (also used by tests to open the same store). */
 export const DB_NAME = 'gym_tracker.db';
@@ -42,6 +43,7 @@ export async function getDB(): Promise<SQLite.SQLiteDatabase> {
       const db = await SQLite.openDatabaseAsync(DB_NAME);
       await configureConnection(db);
       await initSchema(db);
+      await applyDebugFixture(db);
       return db;
     })().catch((err) => {
       // Only clear our own attempt: a later caller may already have installed a
@@ -118,6 +120,40 @@ async function initSchema(db: SQLite.SQLiteDatabase) {
 
     // No pre-populated routine split — all days start completely empty/unassigned.
     // The user must explicitly configure their weekly split via Settings > Routine Split.
+  }
+}
+
+/**
+ * Runs the development fixture once per connection: `seed` on a development
+ * bundle, `purge` on a release bundle, nothing under test (see `debugSeed.ts`
+ * for why those three are compile-time outcomes).
+ *
+ * A release build therefore deletes a development install's fixture rows even
+ * when the database file survived an in-place upgrade — the one path where
+ * seeded data could otherwise outlive the build that created it.
+ *
+ * Failures are swallowed on purpose: the fixture is a debugging aid, and a
+ * fixture problem must never take the data layer down with it.
+ */
+async function applyDebugFixture(db: SQLite.SQLiteDatabase) {
+  if (DEBUG_SEED_MODE === 'off') return;
+
+  try {
+    if (DEBUG_SEED_MODE === 'seed') {
+      const seeded = await seedDebugFixture(db);
+      if (seeded) {
+        console.log(
+          `[debugSeed] seeded ${seeded.sessions} sessions / ${seeded.sets} sets across ${seeded.exercises} exercises`
+        );
+      }
+    } else {
+      const removed = await purgeDebugFixture(db);
+      if (removed > 0) {
+        console.warn(`[debugSeed] removed ${removed} rows left behind by a development fixture`);
+      }
+    }
+  } catch (err) {
+    console.warn('[debugSeed] fixture skipped:', err);
   }
 }
 
@@ -458,6 +494,30 @@ export async function saveDayTemplate(
   });
 }
 
+/**
+ * Persists only the display order of a day's routine.
+ *
+ * Called when the user drops a dragged exercise, which happens ahead of (and
+ * independently of) the routine's explicit "Save Day Routine": rewriting just
+ * the `sort_order` column keeps the stored order in step with the screen
+ * without also committing unfinished edits — exercises added or removed since
+ * the last save keep whatever membership and target sets are on disk.
+ */
+export async function updateDayTemplateOrder(
+  day: DayOfWeek,
+  exerciseIds: string[]
+): Promise<void> {
+  const db = await getDB();
+  await db.withTransactionAsync(async () => {
+    for (let i = 0; i < exerciseIds.length; i++) {
+      await db.runAsync(
+        'UPDATE day_templates SET sort_order = ? WHERE day_of_week = ? AND exercise_id = ?;',
+        [i, day, exerciseIds[i]]
+      );
+    }
+  });
+}
+
 export async function getDayTemplateCounts(): Promise<Record<DayOfWeek, number>> {
   const db = await getDB();
   const rows = await db.getAllAsync<{ day_of_week: DayOfWeek; count: number }>(
@@ -671,8 +731,6 @@ export async function getComplianceStats(daysLimit: number = 30): Promise<{ tota
   const today = new Date();
   let completedCount = 0;
   let scheduledCount = 0;
-  let currentStreak = 0;
-  let streakBroken = false;
 
   const logs = await db.getAllAsync<{ date: string }>(
     'SELECT DISTINCT date FROM workout_logs WHERE completed = 1 ORDER BY date DESC;'
@@ -686,27 +744,20 @@ export async function getComplianceStats(daysLimit: number = 30): Promise<{ tota
     d.setDate(today.getDate() - i);
     const dateStr = formatISODate(d);
     const dayOfWeekStr = daysMap[d.getDay()];
-    
-    const isScheduled = (split[dayOfWeekStr] || []).length > 0;
-    const isCompleted = completedDates.has(dateStr);
 
-    if (isScheduled) scheduledCount++;
-    if (isCompleted) completedCount++;
-
-    // Calculate current streak
-    if (!streakBroken) {
-      if (isCompleted) {
-        currentStreak++;
-      } else if (isScheduled && dateStr !== formatISODate(today)) {
-        streakBroken = true;
-      }
-    }
+    if ((split[dayOfWeekStr] || []).length > 0) scheduledCount++;
+    if (completedDates.has(dateStr)) completedCount++;
   }
+
+  // The window above only scopes the two counts; the streak itself is measured
+  // over the whole history, by the same rule the streak sheet uses — a run
+  // longer than `daysLimit` must not be reported at the window's edge.
+  const scheduledDays = DAYS_OF_WEEK.filter((day) => (split[day] || []).length > 0);
 
   return {
     totalDays: daysLimit,
     scheduledDays: scheduledCount,
     completedDays: completedCount,
-    streak: currentStreak,
+    streak: calculateWorkoutStreak(logs.map((l) => l.date), today, scheduledDays),
   };
 }

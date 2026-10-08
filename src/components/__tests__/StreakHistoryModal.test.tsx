@@ -7,6 +7,7 @@
  */
 import { Text } from 'react-native';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
+import { format } from 'date-fns';
 import StreakHistoryModal from '../StreakHistoryModal';
 import * as db from '../../services/database';
 
@@ -50,12 +51,31 @@ async function seedWorkoutDays(dates: string[]): Promise<void> {
 }
 
 const VACANT_POSITION_TEXT = 'More streaks to come';
+const CURRENT_STREAK_LABEL = 'Current Streak';
+
+/** ISO date string `daysAgo` days before today, so "live" streaks stay live. */
+function daysAgo(daysAgo: number): string {
+  const date = new Date();
+  date.setDate(date.getDate() - daysAgo);
+  return format(date, 'yyyy-MM-dd');
+}
+
+/** `count` consecutive days ending `endDaysAgo` days before today, oldest first. */
+function runOfDays(count: number, endDaysAgo: number): string[] {
+  return Array.from({ length: count }, (_, offset) => daysAgo(endDaysAgo + (count - 1 - offset)));
+}
+
+/** The text rendered inside one ranked row of the sheet, as one string. */
+function rowStrings(tree: ReactTestRenderer, rank: number): string {
+  const row = tree.root.findByProps({ testID: `streak-row-${rank}` });
+  return collectStrings(row.props.children).join('');
+}
 
 describe('StreakHistoryModal', () => {
   beforeEach(async () => {
     const handle = await db.getDB();
     await handle.execAsync(
-      'DELETE FROM workout_sets; DELETE FROM day_templates; DELETE FROM workout_logs; DELETE FROM exercises;'
+      'DELETE FROM workout_sets; DELETE FROM day_templates; DELETE FROM workout_logs; DELETE FROM exercises; DELETE FROM weekly_split;'
     );
   });
 
@@ -100,6 +120,110 @@ describe('StreakHistoryModal', () => {
     const strings = renderedStrings(tree);
     expect(strings.filter((s) => s === VACANT_POSITION_TEXT)).toHaveLength(5);
     expect(strings.some((s) => s.startsWith('#'))).toBe(false);
+    // A fresh install has no live streak to badge either
+    expect(strings).not.toContain(CURRENT_STREAK_LABEL);
+
+    await act(async () => tree.unmount());
+  });
+
+  it('badges the streak that is still running in the rank it earned', async () => {
+    // A long block 40 days back, plus a live run ending today
+    await seedWorkoutDays([...runOfDays(6, 40), ...runOfDays(3, 0)]);
+
+    const tree = await renderModal();
+
+    expect(rowStrings(tree, 1)).toContain('#1 — 6 Days');
+    expect(rowStrings(tree, 1)).not.toContain(CURRENT_STREAK_LABEL);
+    expect(rowStrings(tree, 2)).toContain('#2 — 3 Days');
+    expect(rowStrings(tree, 2)).toContain(CURRENT_STREAK_LABEL);
+    expect(renderedStrings(tree).filter((s) => s === CURRENT_STREAK_LABEL)).toHaveLength(1);
+
+    await act(async () => tree.unmount());
+  });
+
+  it('labels a live streak that is tied with an older run of the same length', async () => {
+    await seedWorkoutDays([...runOfDays(3, 40), ...runOfDays(3, 0)]);
+
+    const tree = await renderModal();
+
+    expect(rowStrings(tree, 1)).toContain('#1 — 3 Days');
+    expect(rowStrings(tree, 1)).toContain(CURRENT_STREAK_LABEL);
+    expect(rowStrings(tree, 2)).toContain('#2 — 3 Days');
+    expect(rowStrings(tree, 2)).not.toContain(CURRENT_STREAK_LABEL);
+    expect(renderedStrings(tree).filter((s) => s === CURRENT_STREAK_LABEL)).toHaveLength(1);
+
+    await act(async () => tree.unmount());
+  });
+
+  it('leaves a run that has already been broken unlabelled', async () => {
+    // Three straight days, but the last one was five days ago: no live streak
+    await seedWorkoutDays(runOfDays(3, 5));
+
+    const tree = await renderModal();
+
+    expect(rowStrings(tree, 1)).toContain('#1 — 3 Days');
+    expect(renderedStrings(tree)).not.toContain(CURRENT_STREAK_LABEL);
+
+    await act(async () => tree.unmount());
+  });
+
+  it('gives a live run that is too short to rank a row of its own', async () => {
+    // Five long runs sit above a single day logged today
+    await seedWorkoutDays([
+      ...runOfDays(6, 60),
+      ...runOfDays(5, 50),
+      ...runOfDays(4, 40),
+      ...runOfDays(3, 30),
+      ...runOfDays(2, 20),
+      daysAgo(0),
+    ]);
+
+    const tree = await renderModal();
+
+    expect(rowStrings(tree, 5)).toContain('#5 — 2 Days');
+    expect(renderedStrings(tree)).not.toContain(VACANT_POSITION_TEXT);
+
+    // The board is full, so the live run keeps a row of its own below it: the
+    // header badge shows that number, so the sheet must not hide it.
+    const liveRow = tree.root.findByProps({ testID: 'streak-current-row' });
+    const liveText = collectStrings(liveRow.props.children).join('');
+    expect(liveText).toContain('1 Day');
+    expect(liveText).toContain(CURRENT_STREAK_LABEL);
+    expect(renderedStrings(tree).filter((s) => s === CURRENT_STREAK_LABEL)).toHaveLength(1);
+
+    await act(async () => tree.unmount());
+  });
+
+  it('measures the live run with the split, so rest days never end it', async () => {
+    // One training day a week (today's weekday), so every day in between is a
+    // rest day. Under the old calendar-day rule this live run would read 0.
+    const today = new Date();
+    const dayNames = [
+      'Sunday',
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+    ] as const;
+    await db.saveWeeklySplit({
+      Monday: [],
+      Tuesday: [],
+      Wednesday: [],
+      Thursday: [],
+      Friday: [],
+      Saturday: [],
+      Sunday: [],
+      [dayNames[today.getDay()]]: ['mg_chest'],
+    });
+    await seedWorkoutDays([daysAgo(3), daysAgo(0)]);
+
+    const tree = await renderModal();
+
+    expect(rowStrings(tree, 1)).toContain('#1 — 2 Days');
+    expect(rowStrings(tree, 1)).toContain(CURRENT_STREAK_LABEL);
+    expect(tree.root.findAllByProps({ testID: 'streak-current-row' })).toHaveLength(0);
 
     await act(async () => tree.unmount());
   });

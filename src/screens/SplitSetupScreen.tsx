@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { memo, useCallback, useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,12 +8,53 @@ import {
   SafeAreaView,
   Alert,
 } from 'react-native'
+import { FlashList } from '@shopify/flash-list';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, SPACING, RADIUS } from '../theme/colors';
 import { useAppStore } from '../store/useAppStore';
-import { DayOfWeek } from '../types';
+import { DayOfWeek, MuscleGroup } from '../types';
 import { DAYS_OF_WEEK } from '../utils/dateUtils';
+
+/**
+ * One muscle group of the day's selection pool.
+ *
+ * `memo` + a stable toggle callback means tapping a group only re-renders the
+ * rows whose `selected` flag actually flipped, instead of the whole pool.
+ */
+const MuscleGroupRow = memo(function MuscleGroupRow({
+  muscleGroup,
+  selected,
+  onToggle,
+}: {
+  muscleGroup: MuscleGroup;
+  selected: boolean;
+  onToggle: (muscleGroupId: string) => void;
+}) {
+  return (
+    <TouchableOpacity
+      style={[styles.mgCard, selected && styles.mgCardSelected]}
+      onPress={() => onToggle(muscleGroup.id)}
+      activeOpacity={0.7}
+    >
+      <View style={styles.mgLeft}>
+        <View style={[styles.checkbox, selected && styles.checkboxSelected]}>
+          {selected && <Ionicons name="checkmark" size={16} color="#09090b" />}
+        </View>
+        <Text style={[styles.mgName, selected && styles.mgNameSelected]}>
+          {muscleGroup.name}
+        </Text>
+      </View>
+      {selected && (
+        <View style={styles.assignedBadge}>
+          <Text style={styles.assignedBadgeText}>Assigned</Text>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+});
+
+const muscleGroupKey = (muscleGroup: MuscleGroup): string => muscleGroup.id;
 
 export default function SplitSetupScreen() {
   const insets = useSafeAreaInsets();
@@ -32,29 +73,54 @@ export default function SplitSetupScreen() {
   }, [weeklySplit]);
 
   // Toggle a muscle group and persist the split immediately (auto-save)
-  const toggleMuscleGroupForDay = (day: DayOfWeek, mgId: string) => {
-    const prev = localSplitRef.current;
-    const current = prev[day] || [];
-    const exists = current.includes(mgId);
-    const updatedDayMgs = exists
-      ? current.filter((id) => id !== mgId)
-      : [...current, mgId];
-    const next = {
-      ...prev,
-      [day]: updatedDayMgs,
-    };
+  const toggleMuscleGroupForDay = useCallback(
+    (day: DayOfWeek, mgId: string) => {
+      const prev = localSplitRef.current;
+      const current = prev[day] || [];
+      const exists = current.includes(mgId);
+      const updatedDayMgs = exists
+        ? current.filter((id) => id !== mgId)
+        : [...current, mgId];
+      const next = {
+        ...prev,
+        [day]: updatedDayMgs,
+      };
 
-    localSplitRef.current = next;
-    setLocalSplit(next);
+      localSplitRef.current = next;
+      setLocalSplit(next);
 
-    // Instant persistence — no manual save button
-    updateSplit(next).catch((err) => {
-      console.error('Auto-save error (split):', err);
-      Alert.alert('Error', 'Failed to auto-save weekly split schedule.');
-    });
-  };
+      // Instant persistence — no manual save button
+      updateSplit(next).catch((err) => {
+        console.error('Auto-save error (split):', err);
+        Alert.alert('Error', 'Failed to auto-save weekly split schedule.');
+      });
+    },
+    [updateSplit]
+  );
 
   const activeDayMuscleGroups = localSplit[selectedDay] || [];
+
+  // Stable per-row toggle: bound to the day currently being edited.
+  const handleToggleForSelectedDay = useCallback(
+    (mgId: string) => toggleMuscleGroupForDay(selectedDay, mgId),
+    [selectedDay, toggleMuscleGroupForDay]
+  );
+
+  // Row callbacks stay stable across renders: only the row whose `selected`
+  // flag flipped re-renders when the day's pool changes.
+  const renderMuscleGroup = useCallback(
+    ({ item }: { item: MuscleGroup }) => {
+      const selected = activeDayMuscleGroups.includes(item.id);
+      return (
+        <MuscleGroupRow
+          muscleGroup={item}
+          selected={selected}
+          onToggle={handleToggleForSelectedDay}
+        />
+      );
+    },
+    [activeDayMuscleGroups, handleToggleForSelectedDay]
+  );
 
   return (
     <SafeAreaView style={styles.container}>
@@ -114,8 +180,9 @@ export default function SplitSetupScreen() {
         </Text>
       </View>
 
-      {/* Muscle Group List Toggle */}
-      <ScrollView
+      {/* Muscle Group List Toggle — recycled pool (FlashList) so a long pool of
+          groups cannot stutter while the split is being tapped through */}
+      <FlashList<MuscleGroup>
         style={styles.mgScroll}
         contentContainerStyle={[
           styles.mgListContent,
@@ -123,33 +190,12 @@ export default function SplitSetupScreen() {
           // above the Android home/back navigation bar.
           { paddingBottom: insets.bottom + 30 },
         ]}
-      >
-        {muscleGroups.map((mg) => {
-          const isSelected = activeDayMuscleGroups.includes(mg.id);
-          return (
-            <TouchableOpacity
-              key={mg.id}
-              style={[styles.mgCard, isSelected && styles.mgCardSelected]}
-              onPress={() => toggleMuscleGroupForDay(selectedDay, mg.id)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.mgLeft}>
-                <View style={[styles.checkbox, isSelected && styles.checkboxSelected]}>
-                  {isSelected && <Ionicons name="checkmark" size={16} color="#09090b" />}
-                </View>
-                <Text style={[styles.mgName, isSelected && styles.mgNameSelected]}>
-                  {mg.name}
-                </Text>
-              </View>
-              {isSelected && (
-                <View style={styles.assignedBadge}>
-                  <Text style={styles.assignedBadgeText}>Assigned</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
+        data={muscleGroups}
+        keyExtractor={muscleGroupKey}
+        renderItem={renderMuscleGroup}
+        extraData={activeDayMuscleGroups}
+        showsVerticalScrollIndicator={false}
+      />
     </SafeAreaView>
   );
 }
@@ -236,7 +282,6 @@ const styles = StyleSheet.create({
   },
   mgListContent: {
     paddingHorizontal: SPACING.lg,
-    gap: 10,
   },
   mgCard: {
     flexDirection: 'row',
@@ -247,6 +292,9 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.lg,
     borderWidth: 1,
     borderColor: COLORS.border,
+    // Row gap lives on the row itself: FlashList v2 positions every cell
+    // absolutely, so a `gap` on the content container would have no effect.
+    marginBottom: 10,
   },
   mgCardSelected: {
     backgroundColor: COLORS.bgSecondary,

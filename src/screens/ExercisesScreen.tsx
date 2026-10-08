@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -9,8 +9,8 @@ import {
   TextInput,
   Alert,
   Modal,
-  SectionList,
 } from 'react-native';
+import { FlashList } from '@shopify/flash-list';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
@@ -20,6 +20,134 @@ import { Exercise, RootTabParamList } from '../types';
 import { EXERCISE_POOL, PoolExercise } from '../constants/exercisePool';
 import * as db from '../services/database';
 import * as Haptics from 'expo-haptics';
+
+/**
+ * One row of the library list.
+ *
+ * `memo` keeps a recycled row's render off the JS thread when unrelated screen
+ * state changes (the transient notice, a modal opening, the search query):
+ * only the rows whose own exercise or callbacks changed are re-rendered.
+ */
+const LibraryRow = memo(function LibraryRow({
+  exercise,
+  onEdit,
+  onDelete,
+}: {
+  exercise: Exercise;
+  onEdit: (exercise: Exercise) => void;
+  onDelete: (exercise: Exercise) => void;
+}) {
+  return (
+    <View style={styles.exRow}>
+      <View style={styles.exInfo}>
+        <Text style={styles.exName} numberOfLines={1}>
+          {exercise.name}
+        </Text>
+        {exercise.muscleGroup ? (
+          <View style={styles.mgTag}>
+            <Text style={styles.mgTagText}>{exercise.muscleGroup}</Text>
+          </View>
+        ) : null}
+      </View>
+      <View style={styles.exActions}>
+        <TouchableOpacity
+          style={styles.iconBtn}
+          onPress={() => onEdit(exercise)}
+          hitSlop={6}
+          accessibilityLabel={`Edit ${exercise.name}`}
+        >
+          <Ionicons name="pencil-outline" size={17} color={COLORS.textSecondary} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.iconBtn}
+          onPress={() => onDelete(exercise)}
+          hitSlop={6}
+          accessibilityLabel={`Delete ${exercise.name}`}
+        >
+          <Ionicons name="trash-outline" size={17} color={COLORS.accentRed} />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+});
+
+/**
+ * One row of the exercise pool. The section headers are flattened into the
+ * same `data` array (see `poolRows` below) so the pool can be recycled by
+ * FlashList instead of rendered by a `SectionList`.
+ */
+type PoolRow =
+  | { kind: 'header'; title: string }
+  | { kind: 'exercise'; exercise: PoolExercise };
+
+/** Stable keys: headers by title, exercises by name (names are unique in the pool). */
+const poolRowKey = (row: PoolRow): string =>
+  row.kind === 'header' ? `header:${row.title}` : `exercise:${row.exercise.name}`;
+
+/** Recycling pool per row type — headers never get recycled into exercise rows. */
+const poolRowType = (row: PoolRow): string => row.kind;
+
+const PoolExerciseRow = memo(function PoolExerciseRow({
+  exercise,
+  added,
+  onAdd,
+}: {
+  exercise: PoolExercise;
+  added: boolean;
+  onAdd: (exercise: PoolExercise) => void;
+}) {
+  return (
+    <TouchableOpacity
+      style={[styles.poolRow, added && styles.poolRowAdded]}
+      onPress={() => onAdd(exercise)}
+      disabled={added}
+      activeOpacity={0.7}
+    >
+      <View style={styles.poolRowInfo}>
+        <Text style={[styles.poolRowName, added && styles.poolRowNameAdded]}>
+          {exercise.name}
+        </Text>
+        <View style={styles.poolMgTag}>
+          <Text style={styles.poolMgTagText}>{exercise.muscleGroup}</Text>
+        </View>
+      </View>
+      <View style={styles.poolAddSpan}>
+        {added ? (
+          <>
+            <Ionicons name="checkmark" size={18} color={COLORS.accentGreen} />
+            <Text style={styles.poolAddedText}>Added</Text>
+          </>
+        ) : (
+          <>
+            <Ionicons name="add" size={18} color={COLORS.accent} />
+            <Text style={styles.poolAddText}>Add</Text>
+          </>
+        )}
+      </View>
+    </TouchableOpacity>
+  );
+});
+
+const PoolSectionHeader = memo(function PoolSectionHeader({ title }: { title: string }) {
+  return (
+    <View style={styles.poolSectionHeader}>
+      <Text style={styles.poolSectionTitle}>{title}</Text>
+    </View>
+  );
+});
+
+/** Muscle groups in the app's canonical order (Chest → … → Abs & Core). */
+const CANONICAL_MG_ORDER = [
+  'Chest',
+  'Back',
+  'Shoulders',
+  'Biceps',
+  'Triceps',
+  'Forearms',
+  'Legs',
+  'Calves',
+  'Abs & Core',
+];
 
 export default function ExercisesScreen() {
   const navigation = useNavigation<BottomTabNavigationProp<RootTabParamList>>();
@@ -58,101 +186,119 @@ export default function ExercisesScreen() {
   );
 
   // Which pool items are already in the user's library (case-insensitive)?
-  const existingByName: Set<string> = new Set(
-    allExercises.map((e) => e.name.toLowerCase().trim())
+  // Memoized (and read through a stable callback) so the memoized pool rows
+  // below are only invalidated when the library itself changes.
+  const existingByName = useMemo<Set<string>>(
+    () => new Set(allExercises.map((e) => e.name.toLowerCase().trim())),
+    [allExercises]
   );
 
-  const isPoolItemAdded = (name: string) => existingByName.has(name.toLowerCase().trim());
+  const isPoolItemAdded = useCallback(
+    (name: string) => existingByName.has(name.toLowerCase().trim()),
+    [existingByName]
+  );
 
-  const flashNotice = (msg: string) => {
+  const flashNotice = useCallback((msg: string) => {
     setAddedNotice(msg);
     setTimeout(() => setAddedNotice(null), 2200);
-  };
+  }, []);
 
   // After any exercise is added, surface a themed dialog reminding the user it
   // must be saved to a specific day in the Workout tab (saved routines don't
   // auto-import new library entries). The dialog is rendered below in the app's
   // dark theme instead of the default native (white) alert.
-  const promptSaveThisToDay = (exercise: { name: string; muscleGroup: string }) => {
-    setSavePrompt({ name: exercise.name, muscleGroup: exercise.muscleGroup || 'General' });
-  };
-
-  const closeSavePrompt = () => setSavePrompt(null);
-
-  const handleGoToWorkout = () => {
-    setSavePrompt(null);
-    navigation.navigate('Workout');
-  };
-
-  const handleAddFromPool = async (poolEx: PoolExercise) => {
-    if (isPoolItemAdded(poolEx.name)) {
-      flashNotice(`"${poolEx.name}" is already in your library`);
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
-      return;
-    }
-    try {
-      await addExercise(poolEx.name, poolEx.muscleGroup);
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-      flashNotice(`Added "${poolEx.name}"`);
-      promptSaveThisToDay(poolEx);
-      // Keep modal open so the user can add several in a row; row flips to "Added".
-    } catch (err: any) {
-      if (err?.message === 'EXERCISE_EXISTS') {
-        flashNotice(`"${poolEx.name}" is already in your library`);
-      } else {
-        console.warn('Failed to add from pool:', err);
-        Alert.alert('Error', 'Failed to add exercise.');
-      }
-    }
-  };
-
-  const normalize = (s: string) => s.trim().toLowerCase();
-
-  // Filter + group the pool by muscle group for display, respecting the query.
-  const normalizedQuery = normalize(poolQuery);
-  const filteredPool = EXERCISE_POOL.filter((e) =>
-    !normalizedQuery ? true : normalize(e.name).includes(normalizedQuery)
+  const promptSaveThisToDay = useCallback(
+    (exercise: { name: string; muscleGroup: string }) => {
+      setSavePrompt({ name: exercise.name, muscleGroup: exercise.muscleGroup || 'General' });
+    },
+    []
   );
 
-  const poolSections = (() => {
+  const closeSavePrompt = useCallback(() => setSavePrompt(null), []);
+
+  const handleGoToWorkout = useCallback(() => {
+    setSavePrompt(null);
+    navigation.navigate('Workout');
+  }, [navigation]);
+
+  const handleAddFromPool = useCallback(
+    async (poolEx: PoolExercise) => {
+      if (isPoolItemAdded(poolEx.name)) {
+        flashNotice(`"${poolEx.name}" is already in your library`);
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+        return;
+      }
+      try {
+        await addExercise(poolEx.name, poolEx.muscleGroup);
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        flashNotice(`Added "${poolEx.name}"`);
+        promptSaveThisToDay(poolEx);
+        // Keep modal open so the user can add several in a row; row flips to "Added".
+      } catch (err: any) {
+        if (err?.message === 'EXERCISE_EXISTS') {
+          flashNotice(`"${poolEx.name}" is already in your library`);
+        } else {
+          console.warn('Failed to add from pool:', err);
+          Alert.alert('Error', 'Failed to add exercise.');
+        }
+      }
+    },
+    [addExercise, flashNotice, isPoolItemAdded, promptSaveThisToDay]
+  );
+
+  /**
+   * The pool, filtered by the search query and flattened into a single row
+   * array (section header rows interleaved with exercise rows) so it can be
+   * recycled by FlashList. Ordering is the canonical muscle-group order
+   * (Chest → Back → Shoulders → Biceps → Triceps → Forearms → Legs → Calves →
+   * Abs & Core); any unmatched/'Other' bucket (defensive only) sorts last.
+   *
+   * Memoized on the query: typing in the search box re-filters once per
+   * keystroke, and nothing else (adding an exercise, opening a modal) rebuilds
+   * the ~90-row array.
+   */
+  const poolRows = useMemo<PoolRow[]>(() => {
+    const normalizedQuery = poolQuery.trim().toLowerCase();
+    const filteredPool = normalizedQuery
+      ? EXERCISE_POOL.filter((e) => e.name.trim().toLowerCase().includes(normalizedQuery))
+      : EXERCISE_POOL;
+
     const grouped: Record<string, PoolExercise[]> = {};
     for (const ex of filteredPool) {
       const key = ex.muscleGroup || 'Other';
       if (!grouped[key]) grouped[key] = [];
       grouped[key].push(ex);
     }
-    // Render in the canonical 9-group order (Chest → Back → Shoulders →
-    // Biceps → Triceps → Forearms → Legs → Calves → Abs & Core), matching the
-    // app's defined categories, instead of alphabetical. Any unmatched/'Other'
-    // bucket (defensive only) is appended at the end.
-    const canonicalOrder = [
-      'Chest',
-      'Back',
-      'Shoulders',
-      'Biceps',
-      'Triceps',
-      'Forearms',
-      'Legs',
-      'Calves',
-      'Abs & Core',
-    ];
-    return Object.entries(grouped)
-      .sort(([a], [b]) => {
-        const ia = canonicalOrder.indexOf(a);
-        const ib = canonicalOrder.indexOf(b);
-        if (ia === -1 && ib === -1) return a.localeCompare(b);
-        if (ia === -1) return 1;
-        if (ib === -1) return -1;
-        return ia - ib;
-      })
-      .map(([title, data]) => ({ title, data }));
-  })();
 
-  const openCustom = () => {
+    const rows: PoolRow[] = [];
+    for (const [title, data] of Object.entries(grouped).sort(([a], [b]) => {
+      const ia = CANONICAL_MG_ORDER.indexOf(a);
+      const ib = CANONICAL_MG_ORDER.indexOf(b);
+      if (ia === -1 && ib === -1) return a.localeCompare(b);
+      if (ia === -1) return 1;
+      if (ib === -1) return -1;
+      return ia - ib;
+    })) {
+      rows.push({ kind: 'header', title });
+      for (const exercise of data) rows.push({ kind: 'exercise', exercise });
+    }
+    return rows;
+  }, [poolQuery]);
+
+  // Rows that must stay pinned while the pool scrolls (the section headers).
+  const poolStickyHeaderIndices = useMemo(() => {
+    const indices: number[] = [];
+    poolRows.forEach((row, index) => {
+      if (row.kind === 'header') indices.push(index);
+    });
+    return indices;
+  }, [poolRows]);
+
+  const openCustom = useCallback(() => {
     setNewExName('');
     setSelectedMg(muscleGroups[0]?.name || '');
     setCustomVisible(true);
-  };
+  }, [muscleGroups]);
 
   const handleAddCustom = async () => {
     if (!newExName.trim()) {
@@ -178,11 +324,39 @@ export default function ExercisesScreen() {
     }
   };
 
-  const openEdit = (ex: Exercise) => {
-    setEditingExercise(ex);
-    setEditName(ex.name);
-    setEditMg(ex.muscleGroup || muscleGroups[0]?.name || '');
-  };
+  const openEdit = useCallback(
+    (ex: Exercise) => {
+      setEditingExercise(ex);
+      setEditName(ex.name);
+      setEditMg(ex.muscleGroup || muscleGroups[0]?.name || '');
+    },
+    [muscleGroups]
+  );
+
+  // Stable per-row callbacks: a recycled library row only re-renders when its
+  // own exercise or these handlers change.
+  const requestDelete = useCallback((ex: Exercise) => setPendingDelete(ex), []);
+
+  const renderLibraryRow = useCallback(
+    ({ item }: { item: Exercise }) => (
+      <LibraryRow exercise={item} onEdit={openEdit} onDelete={requestDelete} />
+    ),
+    [openEdit, requestDelete]
+  );
+
+  const renderPoolRow = useCallback(
+    ({ item }: { item: PoolRow }) =>
+      item.kind === 'header' ? (
+        <PoolSectionHeader title={item.title} />
+      ) : (
+        <PoolExerciseRow
+          exercise={item.exercise}
+          added={isPoolItemAdded(item.exercise.name)}
+          onAdd={handleAddFromPool}
+        />
+      ),
+    [handleAddFromPool, isPoolItemAdded]
+  );
 
   const handleSaveEdit = async () => {
     if (!editingExercise || !editName.trim()) return;
@@ -211,38 +385,18 @@ export default function ExercisesScreen() {
     }
   };
 
-  const renderMgChips = (selected: string, onSelect: (name: string) => void) => (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      style={styles.mgPickerScroll}
-      contentContainerStyle={styles.mgPickerContent}
-    >
-      {muscleGroups.map((mg) => {
-        const isSel = selected === mg.name;
-        return (
-          <TouchableOpacity
-            key={mg.id}
-            style={[styles.mgPickerChip, isSel && styles.mgPickerChipSelected]}
-            onPress={() => onSelect(mg.name)}
-          >
-            <Text style={[styles.mgPickerText, isSel && styles.mgPickerTextSelected]}>
-              {mg.name}
-            </Text>
-          </TouchableOpacity>
-        );
-      })}
-    </ScrollView>
-  );
+  const openPool = useCallback(() => {
+    setPoolQuery('');
+    setPoolVisible(true);
+  }, []);
 
-  return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* Header */}
+  const libraryKeyExtractor = useCallback((item: Exercise) => item.id.toString(), []);
+
+  // List chrome for the library FlashList — header + action bar + transient
+  // notice + section title, so the whole screen scrolls as one virtualised list.
+  const libraryHeader = useMemo(
+    () => (
+      <>
         <View style={styles.header}>
           <Text style={styles.title}>Exercise Library</Text>
           <Text style={styles.subtitle}>
@@ -254,10 +408,7 @@ export default function ExercisesScreen() {
         <View style={styles.actionRow}>
           <TouchableOpacity
             style={[styles.actionCard, styles.actionSearch]}
-            onPress={() => {
-              setPoolQuery('');
-              setPoolVisible(true);
-            }}
+            onPress={openPool}
             activeOpacity={0.85}
           >
             <Ionicons name="search" size={20} color={COLORS.bgPrimary} />
@@ -290,49 +441,76 @@ export default function ExercisesScreen() {
 
         {/* Library list */}
         <Text style={styles.listTitle}>YOUR LIBRARY ({allExercises.length})</Text>
-        {allExercises.length === 0 ? (
-          <View style={styles.emptyBox}>
-            <Ionicons name="barbell-outline" size={30} color={COLORS.textMuted} />
-            <Text style={styles.emptyText}>
-              Your library is empty. Tap “Search Exercise” to pull in common movements, or create
-              a custom one.
+      </>
+    ),
+    [addedNotice, allExercises.length, openCustom, openPool]
+  );
+
+  const libraryEmpty = useMemo(
+    () => (
+      <View style={styles.emptyBox}>
+        <Ionicons name="barbell-outline" size={30} color={COLORS.textMuted} />
+        <Text style={styles.emptyText}>
+          Your library is empty. Tap “Search Exercise” to pull in common movements, or create a
+          custom one.
+        </Text>
+      </View>
+    ),
+    []
+  );
+
+  const renderMgChips = (selected: string, onSelect: (name: string) => void) => (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={styles.mgPickerScroll}
+      contentContainerStyle={styles.mgPickerContent}
+    >
+      {muscleGroups.map((mg) => {
+        const isSel = selected === mg.name;
+        return (
+          <TouchableOpacity
+            key={mg.id}
+            style={[styles.mgPickerChip, isSel && styles.mgPickerChipSelected]}
+            onPress={() => onSelect(mg.name)}
+          >
+            <Text style={[styles.mgPickerText, isSel && styles.mgPickerTextSelected]}>
+              {mg.name}
             </Text>
-          </View>
-        ) : (
-          allExercises.map((ex) => (
-            <View key={ex.id} style={styles.exRow}>
-              <View style={styles.exInfo}>
-                <Text style={styles.exName} numberOfLines={1}>
-                  {ex.name}
-                </Text>
-                {ex.muscleGroup ? (
-                  <View style={styles.mgTag}>
-                    <Text style={styles.mgTagText}>{ex.muscleGroup}</Text>
-                  </View>
-                ) : null}
-              </View>
-              <View style={styles.exActions}>
-                <TouchableOpacity
-                  style={styles.iconBtn}
-                  onPress={() => openEdit(ex)}
-                  hitSlop={6}
-                  accessibilityLabel={`Edit ${ex.name}`}
-                >
-                  <Ionicons name="pencil-outline" size={17} color={COLORS.textSecondary} />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.iconBtn}
-                  onPress={() => setPendingDelete(ex)}
-                  hitSlop={6}
-                  accessibilityLabel={`Delete ${ex.name}`}
-                >
-                  <Ionicons name="trash-outline" size={17} color={COLORS.accentRed} />
-                </TouchableOpacity>
-              </View>
-            </View>
-          ))
-        )}
-      </ScrollView>
+          </TouchableOpacity>
+        );
+      })}
+    </ScrollView>
+  );
+
+  return (
+    <SafeAreaView style={styles.container}>
+      {/*
+        The library is the app's heaviest catalogue (every exercise the user has
+        ever added), so it is recycled by FlashList instead of being expanded
+        with `.map()` inside a plain ScrollView. The list chrome (title, action
+        cards, transient notice) rides along as the header, and the empty state
+        as the empty slot, so scrolling stays virtualised end to end.
+
+        FlashList v2 measures its own cells and derives the layout from them, so
+        no `estimatedItemSize` is passed — the prop was removed in v2 and an
+        estimated size would be ignored (and mis-lead the reader).
+
+        Rows are `React.memo`'d components fed by `useCallback` handlers, so a
+        change to the transient notice or to a modal's state no longer re-renders
+        every visible row.
+      */}
+      <FlashList<Exercise>
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        data={allExercises}
+        keyExtractor={libraryKeyExtractor}
+        renderItem={renderLibraryRow}
+        keyboardShouldPersistTaps="handled"
+        ListHeaderComponent={libraryHeader}
+        ListEmptyComponent={libraryEmpty}
+        showsVerticalScrollIndicator={false}
+      />
 
       {/* ---------- Search Exercise (Pool) Modal ---------- */}
       <Modal
@@ -378,54 +556,31 @@ export default function ExercisesScreen() {
           </Text>
 
           {/* Pool list grouped by muscle group */}
-          {filteredPool.length === 0 ? (
+          {poolRows.length === 0 ? (
             <View style={styles.poolEmpty}>
               <Ionicons name="search-outline" size={30} color={COLORS.textMuted} />
               <Text style={styles.poolEmptyText}>No exercises match “{poolQuery}”.</Text>
             </View>
           ) : (
-            <SectionList
-              sections={poolSections}
-              keyExtractor={(item) => item.name}
-              stickySectionHeadersEnabled
-              renderSectionHeader={({ section: { title } }) => (
-                <View style={styles.poolSectionHeader}>
-                  <Text style={styles.poolSectionTitle}>{title}</Text>
-                </View>
-              )}
-              renderItem={({ item }) => {
-                const added = isPoolItemAdded(item.name);
-                return (
-                  <TouchableOpacity
-                    style={[styles.poolRow, added && styles.poolRowAdded]}
-                    onPress={() => handleAddFromPool(item)}
-                    disabled={added}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.poolRowInfo}>
-                      <Text style={[styles.poolRowName, added && styles.poolRowNameAdded]}>
-                        {item.name}
-                      </Text>
-                      <View style={styles.poolMgTag}>
-                        <Text style={styles.poolMgTagText}>{item.muscleGroup}</Text>
-                      </View>
-                    </View>
-                    <View style={styles.poolAddSpan}>
-                      {added ? (
-                        <>
-                          <Ionicons name="checkmark" size={18} color={COLORS.accentGreen} />
-                          <Text style={styles.poolAddedText}>Added</Text>
-                        </>
-                      ) : (
-                        <>
-                          <Ionicons name="add" size={18} color={COLORS.accent} />
-                          <Text style={styles.poolAddText}>Add</Text>
-                        </>
-                      )}
-                    </View>
-                  </TouchableOpacity>
-                );
-              }}
+            /*
+              The pool is the largest catalogue in the app, so the section
+              headers are flattened into the item array (see `poolRows`) and the
+              whole thing is recycled by FlashList. `stickyHeaderIndices` keeps
+              every group title pinned exactly like `SectionList`'s sticky
+              headers did, and `getItemType` stops a header cell ever being
+              recycled into an exercise row.
+            */
+            <FlashList<PoolRow>
+              style={styles.poolList}
+              data={poolRows}
+              keyExtractor={poolRowKey}
+              renderItem={renderPoolRow}
+              getItemType={poolRowType}
+              stickyHeaderIndices={poolStickyHeaderIndices}
+              extraData={existingByName}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              showsVerticalScrollIndicator={false}
             />
           )}
         </SafeAreaView>
@@ -760,6 +915,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.bgPrimary,
   },
+  // The recycled pool fills the space left under the search bar: a definite
+  // viewport is what lets FlashList virtualise instead of measuring itself.
+  poolList: {
+    flex: 1,
+  },
   poolHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -800,8 +960,7 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     fontSize: 15,
   },
-  helperNote: {
-    fontSize: 12,
+  helperNote: {    fontSize: 12,
     color: COLORS.textMuted,
     lineHeight: 17,
     marginHorizontal: SPACING.lg,

@@ -1,9 +1,21 @@
 import {
   aggregateProgressByRange,
+  buildYAxisTicks,
   computeChartMaxValue,
+  computeChartWidth,
+  computePointSpacing,
+  computePlotHeight,
+  computeYAxisLaneHeight,
   readMetricValue,
+  CHART_EDGE_GUTTER,
+  CHART_POINT_WIDTH,
   MAX_CHART_BUCKETS,
   SessionProgressPoint,
+  X_AXIS_LABELS_EXTRA_HEIGHT,
+  X_AXIS_LABELS_VERTICAL_SHIFT,
+  Y_AXIS_BASELINE_TICK_OVERHANG,
+  Y_AXIS_LANE_WIDTH,
+  Y_AXIS_TICK_LINE_HEIGHT,
 } from '../analyticsCalculations';
 
 /** Builds a per-session progress row the way `getExerciseProgress` returns it. */
@@ -240,6 +252,122 @@ describe('Analytics Calculations', () => {
     it('rounds the axis bound up to a whole number', () => {
       expect(computeChartMaxValue([87.5])).toBe(Math.ceil(87.5 * 1.3));
       expect(Number.isInteger(computeChartMaxValue([87.5]))).toBe(true);
+    });
+  });
+
+  describe('computeChartWidth', () => {
+    it('keeps the plot at the container width while the series fits', () => {
+      expect(computeChartWidth(600, 3)).toBe(600);
+      expect(computeChartWidth(600, 0)).toBe(600);
+    });
+
+    it('grants every session its own PX budget once the series outgrows the container', () => {
+      // 12 sessions * CHART_POINT_WIDTH overflows a 600px viewport
+      expect(computeChartWidth(600, 12)).toBe(12 * CHART_POINT_WIDTH);
+      expect(computeChartWidth(600, 12) - computeChartWidth(600, 11)).toBe(
+        CHART_POINT_WIDTH
+      );
+    });
+
+    it('never returns less than the container width, so nothing is squeezed', () => {
+      for (const pointCount of [0, 1, 5, 8, 20]) {
+        expect(computeChartWidth(641, pointCount)).toBeGreaterThanOrEqual(641);
+      }
+    });
+  });
+
+  describe('computePointSpacing', () => {
+    it('spreads the series across the plot, leaving a label gutter on both ends', () => {
+      const plotWidth = 628;
+      const spacing = computePointSpacing(plotWidth, 3);
+
+      // Two gaps + both gutters fill the plot exactly
+      expect(spacing * 2 + CHART_EDGE_GUTTER * 2).toBeCloseTo(plotWidth, 5);
+    });
+
+    it('keeps a long series inside the plot without overlapping its points', () => {
+      const plotWidth = computeChartWidth(600, 20) - Y_AXIS_LANE_WIDTH;
+      const spacing = computePointSpacing(plotWidth, 20);
+
+      expect(spacing).toBeGreaterThan(0);
+      expect(spacing * 19 + CHART_EDGE_GUTTER * 2).toBeLessThanOrEqual(plotWidth);
+    });
+
+    it('compresses only when the plot itself is short of the per-session budget', () => {
+      // A plot that honours CHART_POINT_WIDTH per session never tightens below it
+      expect(computePointSpacing(2400, 8)).toBeGreaterThanOrEqual(CHART_POINT_WIDTH);
+      expect(computePointSpacing(200, 8)).toBeLessThan(CHART_POINT_WIDTH);
+    });
+
+    it('handles a single session without dividing by zero', () => {
+      expect(Number.isFinite(computePointSpacing(628, 1))).toBe(true);
+    });
+  });
+
+  describe('buildYAxisTicks', () => {
+    it('spans the axis from the upper bound down to zero', () => {
+      expect(buildYAxisTicks(59, 4, 220).map((tick) => tick.label)).toEqual([
+        '59',
+        '44',
+        '29',
+        '14',
+        '0',
+      ]);
+    });
+
+    it('centres every tick on its grid line, clear of the chart top', () => {
+      const ticks = buildYAxisTicks(300, 5, 300);
+      // 300 / 20 top inset, then 60px per section
+      expect(ticks.map((tick) => tick.centerY)).toEqual([15, 75, 135, 195, 255, 315]);
+    });
+
+    it('truncates fractional bounds the way the chart library labels them', () => {
+      expect(buildYAxisTicks(44.25, 4, 220).map((tick) => tick.label)).toEqual([
+        '44',
+        '33',
+        '22',
+        '11',
+        '0',
+      ]);
+    });
+  });
+
+  describe('computePlotHeight', () => {
+    it('spans the chart plus the headroom the library keeps above the top rule', () => {
+      expect(computePlotHeight(220)).toBe(231); // 220 + 220/20
+      expect(computePlotHeight(300)).toBe(315);
+    });
+  });
+
+  describe('y-axis lane and x-axis label spacing', () => {
+    it('gives the lane the baseline tick overhang on top of the plot', () => {
+      // The "0" tick is centred on the baseline, so half its line box would be
+      // clipped by the lane without this extra room
+      expect(computeYAxisLaneHeight(220)).toBe(computePlotHeight(220) + Y_AXIS_TICK_LINE_HEIGHT / 2);
+      expect(computeYAxisLaneHeight(220)).toBe(238);
+
+      // Every tick therefore fits inside the lane it is drawn in
+      const laneHeight = computeYAxisLaneHeight(220);
+      for (const tick of buildYAxisTicks(59, 4, 220)) {
+        expect(tick.centerY + Y_AXIS_TICK_LINE_HEIGHT / 2).toBeLessThanOrEqual(laneHeight);
+      }
+    });
+
+    it('keeps the axis line ending exactly on the baseline', () => {
+      // The lane is taller than the plot, but the rule itself is not: the tick
+      // label sits on the baseline rather than below it
+      expect(computePlotHeight(220) - buildYAxisTicks(59, 4, 220)[4].centerY).toBe(0);
+    });
+
+    it('pushes the date labels clear of the baseline', () => {
+      // The library shifts the labels down by this much and adds it to the
+      // chart container, so both values have to stay positive
+      expect(X_AXIS_LABELS_VERTICAL_SHIFT).toBeGreaterThan(0);
+      expect(X_AXIS_LABELS_EXTRA_HEIGHT).toBeGreaterThan(0);
+      // Together they clear the overhang of the "0" tick's own line box
+      expect(X_AXIS_LABELS_VERTICAL_SHIFT + X_AXIS_LABELS_EXTRA_HEIGHT).toBeGreaterThanOrEqual(
+        Y_AXIS_BASELINE_TICK_OVERHANG
+      );
     });
   });
 });

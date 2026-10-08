@@ -1,0 +1,52 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-android-apk:
+    name: Compile Standalone APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java (Temurin 17)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: TypeScript compilation check
+        run: npx tsc --noEmit
+
+      - name: Run unit tests
+        run: npm test -- --ci --watchAll=false
+
+      - name: Generate native Android project (Expo Prebuild)
+        run: npx expo prebuild --platform android --clean
+
+      - name: Build Release APK
+        run: |
+          chmod +x android/gradlew
+          cd android && ./gradlew assembleRelease --no-daemon
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: omega-arm64-release-apk
+          path: android/app/build/outputs/apk/release/*.apk
+          retention-days: 7

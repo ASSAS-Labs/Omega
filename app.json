@@ -25,10 +25,14 @@
           "android": {
             "buildArchs": [
               "arm64-v8a"
-            ]
+            ],
+            "enableMinifyInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "extraProguardRules": "# SQLite JSI bindings are resolved by name from native code.\n-keep class expo.modules.sqlite.** { *; }"
           }
         }
-      ]
+      ],
+      "./plugins/withAndroidDebugSymbolLevel"
     ],
     "scheme": "gymtracker",
     "extra": {

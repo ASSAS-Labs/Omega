@@ -170,6 +170,19 @@ function AppNavigator() {
       <Tab.Screen
         name="Workout"
         component={WorkoutStackNavigator}
+        // The bottom "Workout" tab is the routine/days hub: it always lands on
+        // WorkoutDaysScreen. A lingering ActiveWorkout route (a session in
+        // progress, or an unfinalized draft) must never hijack the tab — the
+        // only ways into the live logger are "Start Workout" and the
+        // WorkoutDraftBanner's "Resume".
+        listeners={({ navigation }) => ({
+          tabPress: (event) => {
+            event.preventDefault();
+            // `pop` reuses the stack's existing WorkoutDays route (and leaves it
+            // alone when it is already on top) instead of pushing a second copy.
+            navigation.navigate('Workout', { screen: 'WorkoutDays', pop: true });
+          },
+        })}
         options={{
           title: 'Workout',
           tabBarIcon: ({ color, focused }) => (

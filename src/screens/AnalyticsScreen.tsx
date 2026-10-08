@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { ReactElement, RefObject } from 'react';
 import {
   View,
   Text,
@@ -20,7 +21,17 @@ import { useWeightUnit } from '../hooks/useWeightUnit';
 import StreakHistoryModal from '../components/StreakHistoryModal';
 import {
   aggregateProgressByRange,
+  buildYAxisTicks,
   computeChartMaxValue,
+  computeChartWidth,
+  computePlotHeight,
+  computePointSpacing,
+  computeYAxisLaneHeight,
+  CHART_EDGE_GUTTER,
+  X_AXIS_LABELS_EXTRA_HEIGHT,
+  X_AXIS_LABELS_VERTICAL_SHIFT,
+  Y_AXIS_LANE_WIDTH,
+  Y_AXIS_TICK_LINE_HEIGHT,
   AnalyticsMetric,
   AnalyticsRange,
   SessionProgressPoint,
@@ -32,6 +43,14 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 // Card inner width: screen - screen padding (lg*2) - card padding (md*2) - borders (2)
 const CHART_WIDTH = SCREEN_WIDTH - SPACING.lg * 2 - SPACING.md * 2 - 2;
 const FULLSCREEN_CHART_WIDTH = SCREEN_WIDTH - 40;
+
+// Chart geometry. The plot pans horizontally once the series outgrows the
+// viewport, so each session is always given CHART_POINT_WIDTH px of room and the
+// y-axis is drawn in a frozen lane beside the scroll area.
+const CARD_CHART_HEIGHT = 220;
+const CARD_CHART_SECTIONS = 4;
+const FULLSCREEN_CHART_HEIGHT = 300;
+const FULLSCREEN_CHART_SECTIONS = 5;
 
 // Filter pills, left to right
 const RANGE_TABS: AnalyticsRange[] = ['week', 'session', 'month'];
@@ -50,6 +69,139 @@ function StackedAxisLabel({ label, yearLabel }: { label: string; yearLabel: stri
   );
 }
 
+/** One plotted session, as handed to Gifted Charts. */
+interface ChartDatum {
+  value: number;
+  label: string;
+  labelComponent: () => ReactElement;
+  color: string;
+  dataPointText: string;
+}
+
+interface ProgressionChartProps {
+  data: ChartDatum[];
+  maxValue: number;
+  height: number;
+  noOfSections: number;
+  /** Plot width: the chart width minus the frozen y-axis lane. */
+  plotWidth: number;
+  backgroundColor: string;
+  axisFontSize: number;
+  scrollTestID: string;
+  scrollRef: RefObject<ScrollView | null>;
+}
+
+/**
+ * Plotted progression series with a horizontally pannable plot and a frozen
+ * y-axis lane: the lane sits outside the ScrollView, so the axis stays
+ * readable while the sessions are panned, and the newest session is brought
+ * into view as soon as the plot is laid out or its data changes.
+ */
+function ProgressionChartBase({
+  data,
+  maxValue,
+  height,
+  noOfSections,
+  plotWidth,
+  backgroundColor,
+  axisFontSize,
+  scrollTestID,
+  scrollRef,
+}: ProgressionChartProps) {
+  const ticks = buildYAxisTicks(maxValue, noOfSections, height);
+
+  return (
+    <View style={styles.plotRow}>
+      <View
+        style={[styles.yAxisLane, { height: computeYAxisLaneHeight(height) }]}
+        pointerEvents="none"
+      >
+        {/* The axis line stops at the baseline; the lane itself is taller so
+            the bottom tick is not clipped. */}
+        <View style={[styles.yAxisLine, { height: computePlotHeight(height) }]} />
+
+        {ticks.map((tick) => (
+          <Text
+            key={tick.centerY}
+            style={[
+              styles.yAxisTick,
+              {
+                fontSize: axisFontSize,
+                top: tick.centerY - Y_AXIS_TICK_LINE_HEIGHT / 2,
+              },
+            ]}
+          >
+            {tick.label}
+          </Text>
+        ))}
+      </View>
+
+      <ScrollView
+        ref={scrollRef}
+        testID={scrollTestID}
+        style={styles.chartScroll}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        nestedScrollEnabled
+        bounces={false}
+        overScrollMode="never"
+        // Re-anchor on the newest session whenever the plot is (re)laid out
+        onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}
+      >
+        <LineChart
+          data={data}
+          width={plotWidth}
+          height={height}
+          // Spread the points across the full (pannable) plot, keeping both end
+          // labels inside the frame
+          spacing={computePointSpacing(plotWidth, data.length)}
+          initialSpacing={CHART_EDGE_GUTTER}
+          endSpacing={CHART_EDGE_GUTTER}
+          disableScroll
+          color={COLORS.accentBlue}
+          thickness={3}
+          curved={false}
+          backgroundColor={backgroundColor}
+          noOfSections={noOfSections}
+          rulesColor={COLORS.border}
+          rulesType="dashed"
+          dashWidth={4}
+          dashGap={4}
+          xAxisColor={COLORS.border}
+          yAxisColor={COLORS.border}
+          xAxisLabelTextStyle={{ color: COLORS.textMuted, fontSize: 10 }}
+          // Y-axis text is drawn by the frozen lane instead
+          hideYAxisText
+          yAxisLabelWidth={0}
+          // Reserve room for the two-line stacked date labels, and keep them
+          // clear of the baseline so they cannot collide with the "0" tick
+          xAxisTextNumberOfLines={2}
+          xAxisLabelsHeight={40}
+          xAxisLabelsVerticalShift={X_AXIS_LABELS_VERTICAL_SHIFT}
+          labelsExtraHeight={X_AXIS_LABELS_EXTRA_HEIGHT}
+          maxValue={maxValue}
+          overflowTop={30}
+          hideDataPoints={false}
+          dataPointsRadius={5}
+          dataPointsColor={COLORS.accent}
+          dataPointsShape="circle"
+          showValuesAsDataPointsText
+          textColor={COLORS.textSecondary}
+          textFontSize={10}
+          textShiftY={-10}
+        />
+      </ScrollView>
+    </View>
+  );
+}
+
+/**
+ * Memoized: the pan/zoom geometry only changes when the plotted window does, so
+ * toggling a metric, opening the modal or any unrelated re-render can never
+ * re-render the chart (and with it every gifted-charts point) on the JS thread.
+ */
+const ProgressionChart = memo(ProgressionChartBase);
+
 export default function AnalyticsScreen() {
   const weightUnit = useWeightUnit();
   const [trackedExercises, setTrackedExercises] = useState<Exercise[]>([]);
@@ -67,6 +219,25 @@ export default function AnalyticsScreen() {
     completedDays: 0,
     streak: 0,
   });
+
+  // Horizontal pan state: one ref per chart instance (card + maximized modal)
+  const cardScrollRef = useRef<ScrollView | null>(null);
+  const fullscreenScrollRef = useRef<ScrollView | null>(null);
+
+  // Stable handlers for the exercise chips (a real list) and the metric toggles
+  const handleSelectExercise = useCallback((exercise: Exercise) => {
+    setSelectedExercise(exercise);
+  }, []);
+  const handleSelectMetric = useCallback((next: AnalyticsMetric) => {
+    setMetric(next);
+  }, []);
+  const handleSelectTimeRange = useCallback((next: AnalyticsRange) => {
+    setTimeRange(next);
+  }, []);
+  const handleOpenStreakHistory = useCallback(() => setStreakHistoryVisible(true), []);
+  const handleCloseStreakHistory = useCallback(() => setStreakHistoryVisible(false), []);
+  const handleOpenFullscreen = useCallback(() => setIsFullscreen(true), []);
+  const handleCloseFullscreen = useCallback(() => setIsFullscreen(false), []);
 
   // Refresh the tracked exercise list whenever the tab regains focus
   // (e.g., after a new workout session or routine change)
@@ -114,46 +285,88 @@ export default function AnalyticsScreen() {
     }
   };
 
-  const complianceRate =
-    complianceStats.scheduledDays > 0
-      ? Math.round((complianceStats.completedDays / complianceStats.scheduledDays) * 100)
-      : 0;
+  const complianceRate = useMemo(
+    () =>
+      complianceStats.scheduledDays > 0
+        ? Math.round((complianceStats.completedDays / complianceStats.scheduledDays) * 100)
+        : 0,
+    [complianceStats]
+  );
 
   // 4-week volume trend percentage (+, -, or 0 when no prior baseline)
-  const trendPct =
-    volumeTrend.priorVolume > 0
-      ? Math.round(((volumeTrend.recentVolume - volumeTrend.priorVolume) / volumeTrend.priorVolume) * 100)
-      : volumeTrend.recentVolume > 0
-      ? 100
-      : 0;
+  const trendPct = useMemo(() => {
+    if (volumeTrend.priorVolume > 0) {
+      return Math.round(
+        ((volumeTrend.recentVolume - volumeTrend.priorVolume) / volumeTrend.priorVolume) * 100
+      );
+    }
+    return volumeTrend.recentVolume > 0 ? 100 : 0;
+  }, [volumeTrend]);
 
   // Aggregate the raw sessions into chart buckets for the selected filter pill
-  // (SESSION = one point per log, WEEK = Monday-Sunday peak, MONTH = monthly peak)
-  const buckets = aggregateProgressByRange(progressData, timeRange, metric);
+  // (SESSION = one point per log, WEEK = Monday-Sunday peak, MONTH = monthly peak).
+  // Memoized: this walks every logged session of the exercise, so it must not
+  // run again just because some unrelated state (modal, scroll ref) changed.
+  const buckets = useMemo(
+    () => aggregateProgressByRange(progressData, timeRange, metric),
+    [metric, progressData, timeRange]
+  );
 
   // Prepare data for Gifted Charts (values converted to the active unit so
   // the y-axis, grid labels, and data point text all reflect it)
-  const chartData = buckets.map((bucket) => {
-    const value = roundWeight(convertWeight(bucket.value, weightUnit));
-    return {
-      value,
-      // Kept as the measured label width source; the rendered label is the
-      // two-line component below.
-      label: bucket.label,
-      labelComponent: () => (
-        <StackedAxisLabel label={bucket.label} yearLabel={bucket.yearLabel} />
-      ),
-      color: COLORS.accent,
-      dataPointText: metric === 'maxWeight' ? `${value}${weightUnit}` : `${value}`,
-    };
-  });
+  const chartData: ChartDatum[] = useMemo(
+    () =>
+      buckets.map((bucket) => {
+        const value = roundWeight(convertWeight(bucket.value, weightUnit));
+        return {
+          value,
+          // Kept as the measured label width source; the rendered label is the
+          // two-line component below.
+          label: bucket.label,
+          labelComponent: () => (
+            <StackedAxisLabel label={bucket.label} yearLabel={bucket.yearLabel} />
+          ),
+          color: COLORS.accent,
+          dataPointText: metric === 'maxWeight' ? `${value}${weightUnit}` : `${value}`,
+        };
+      }),
+    [buckets, metric, weightUnit]
+  );
 
   // 30% headroom above the tallest point so floating value labels never clip
-  const chartMaxValue = computeChartMaxValue(chartData.map((d) => d.value));
+  const chartMaxValue = useMemo(
+    () => computeChartMaxValue(chartData.map((d) => d.value)),
+    [chartData]
+  );
+
+  // Chart width grows with the session count; the frozen y-axis lane is carved
+  // out of it so the plot itself gets the remainder (never < the viewport).
+  const cardPlotWidth = useMemo(
+    () => computeChartWidth(CHART_WIDTH, chartData.length) - Y_AXIS_LANE_WIDTH,
+    [chartData.length]
+  );
+  const fullscreenPlotWidth = useMemo(
+    () => computeChartWidth(FULLSCREEN_CHART_WIDTH, chartData.length) - Y_AXIS_LANE_WIDTH,
+    [chartData.length]
+  );
+
+  // Auto-scroll to the end whenever the plotted window changes (first load, new
+  // filter, opened/closed modal) so the latest session is immediately visible;
+  // the user can then pan left through the older sessions.
+  useEffect(() => {
+    cardScrollRef.current?.scrollToEnd({ animated: false });
+    fullscreenScrollRef.current?.scrollToEnd({ animated: false });
+  }, [chartData.length, timeRange, metric, isFullscreen]);
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        // The content fits on most screens: no rubber-band bounce into blank space
+        bounces={false}
+        overScrollMode="never"
+      >
         {/* Consistency / Split Adherence Card */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Split Compliance (30 Days)</Text>
@@ -170,7 +383,7 @@ export default function AnalyticsScreen() {
             <View style={styles.metricDivider} />
             <TouchableOpacity
               style={styles.metricBlock}
-              onPress={() => setStreakHistoryVisible(true)}
+              onPress={handleOpenStreakHistory}
               activeOpacity={0.7}
               accessibilityLabel="View top streaks"
               accessibilityRole="button"
@@ -213,7 +426,7 @@ export default function AnalyticsScreen() {
                 <TouchableOpacity
                   key={ex.id}
                   style={[styles.exChip, isSelected && styles.exChipSelected]}
-                  onPress={() => setSelectedExercise(ex)}
+                  onPress={() => handleSelectExercise(ex)}
                 >
                   <Text style={[styles.exChipText, isSelected && styles.exChipTextSelected]}>
                     {ex.name}
@@ -239,7 +452,7 @@ export default function AnalyticsScreen() {
             <View style={styles.toggleGroup}>
               <TouchableOpacity
                 style={[styles.toggleBtn, metric === 'maxWeight' && styles.toggleBtnActive]}
-                onPress={() => setMetric('maxWeight')}
+                onPress={() => handleSelectMetric('maxWeight')}
               >
                 <Text style={[styles.toggleText, metric === 'maxWeight' && styles.toggleTextActive]}>
                   Max Weight
@@ -247,7 +460,7 @@ export default function AnalyticsScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.toggleBtn, metric === 'totalVolume' && styles.toggleBtnActive]}
-                onPress={() => setMetric('totalVolume')}
+                onPress={() => handleSelectMetric('totalVolume')}
               >
                 <Text style={[styles.toggleText, metric === 'totalVolume' && styles.toggleTextActive]}>
                   Volume
@@ -264,41 +477,16 @@ export default function AnalyticsScreen() {
             </View>
           ) : (
             <View style={styles.chartWrapper}>
-              <LineChart
+              <ProgressionChart
                 data={chartData}
-                width={CHART_WIDTH}
-                height={220}
-                spacing={Math.min(
-                  70,
-                  Math.max(35, (CHART_WIDTH - 40) / Math.max(chartData.length, 1))
-                )}
-                disableScroll
-                color={COLORS.accentBlue}
-                thickness={3}
-                curved={false}
-                backgroundColor={COLORS.bgCard}
-                noOfSections={4}
-                rulesColor={COLORS.border}
-                rulesType="dashed"
-                dashWidth={4}
-                dashGap={4}
-                xAxisColor={COLORS.border}
-                yAxisColor={COLORS.border}
-                xAxisLabelTextStyle={{ color: COLORS.textMuted, fontSize: 10 }}
-                yAxisTextStyle={{ color: COLORS.textMuted, fontSize: 10 }}
-                // Reserve room for the two-line stacked date labels
-                xAxisTextNumberOfLines={2}
-                xAxisLabelsHeight={40}
                 maxValue={chartMaxValue}
-                overflowTop={30}
-                hideDataPoints={false}
-                dataPointsRadius={5}
-                dataPointsColor={COLORS.accent}
-                dataPointsShape="circle"
-                showValuesAsDataPointsText
-                textColor={COLORS.textSecondary}
-                textFontSize={10}
-                textShiftY={-10}
+                height={CARD_CHART_HEIGHT}
+                noOfSections={CARD_CHART_SECTIONS}
+                plotWidth={cardPlotWidth}
+                backgroundColor={COLORS.bgCard}
+                axisFontSize={10}
+                scrollTestID="card-chart-scroll"
+                scrollRef={cardScrollRef}
               />
             </View>
           )}
@@ -310,7 +498,7 @@ export default function AnalyticsScreen() {
                 <TouchableOpacity
                   key={r}
                   style={[styles.rangeTab, timeRange === r && styles.rangeTabActive]}
-                  onPress={() => setTimeRange(r)}
+                  onPress={() => handleSelectTimeRange(r)}
                 >
                   <Text style={[styles.rangeText, timeRange === r && styles.rangeTextActive]}>
                     {r.toUpperCase()}
@@ -320,7 +508,7 @@ export default function AnalyticsScreen() {
             </View>
             <TouchableOpacity
               style={styles.maximizeBtn}
-              onPress={() => setIsFullscreen(true)}
+              onPress={handleOpenFullscreen}
               accessibilityLabel="Maximize chart"
             >
               <Ionicons name="expand-outline" size={18} color={COLORS.textSecondary} />
@@ -334,7 +522,7 @@ export default function AnalyticsScreen() {
         visible={isFullscreen}
         animationType="fade"
         transparent={false}
-        onRequestClose={() => setIsFullscreen(false)}
+        onRequestClose={handleCloseFullscreen}
       >
         <View style={styles.fullscreenContainer}>
           <View style={styles.fullscreenHeader}>
@@ -388,41 +576,16 @@ export default function AnalyticsScreen() {
             </View>
           ) : (
             <View style={styles.fullscreenChartWrap}>
-              <LineChart
+              <ProgressionChart
                 data={chartData}
-                width={FULLSCREEN_CHART_WIDTH}
-                height={300}
-                spacing={Math.min(
-                  100,
-                  Math.max(50, (FULLSCREEN_CHART_WIDTH - 60) / Math.max(chartData.length, 1))
-                )}
-                disableScroll
-                color={COLORS.accentBlue}
-                thickness={3}
-                curved={false}
-                backgroundColor={COLORS.bgPrimary}
-                noOfSections={5}
-                rulesColor={COLORS.border}
-                rulesType="dashed"
-                dashWidth={4}
-                dashGap={4}
-                xAxisColor={COLORS.border}
-                yAxisColor={COLORS.border}
-                xAxisLabelTextStyle={{ color: COLORS.textMuted, fontSize: 11 }}
-                yAxisTextStyle={{ color: COLORS.textMuted, fontSize: 11 }}
-                // Reserve room for the two-line stacked date labels
-                xAxisTextNumberOfLines={2}
-                xAxisLabelsHeight={40}
                 maxValue={chartMaxValue}
-                overflowTop={30}
-                hideDataPoints={false}
-                dataPointsRadius={5}
-                dataPointsColor={COLORS.accent}
-                dataPointsShape="circle"
-                showValuesAsDataPointsText
-                textColor={COLORS.textSecondary}
-                textFontSize={10}
-                textShiftY={-10}
+                height={FULLSCREEN_CHART_HEIGHT}
+                noOfSections={FULLSCREEN_CHART_SECTIONS}
+                plotWidth={fullscreenPlotWidth}
+                backgroundColor={COLORS.bgPrimary}
+                axisFontSize={11}
+                scrollTestID="fullscreen-chart-scroll"
+                scrollRef={fullscreenScrollRef}
               />
             </View>
           )}
@@ -430,7 +593,7 @@ export default function AnalyticsScreen() {
           <View style={styles.fullscreenFooter}>
             <TouchableOpacity
               style={styles.minimizeBtn}
-              onPress={() => setIsFullscreen(false)}
+              onPress={handleCloseFullscreen}
               accessibilityLabel="Minimize chart"
             >
               <Ionicons name="contract-outline" size={18} color={COLORS.textSecondary} />
@@ -443,7 +606,7 @@ export default function AnalyticsScreen() {
       {/* Streak history sheet: top 5 streaks of all time */}
       <StreakHistoryModal
         visible={streakHistoryVisible}
-        onClose={() => setStreakHistoryVisible(false)}
+        onClose={handleCloseStreakHistory}
       />
     </SafeAreaView>
   );
@@ -615,9 +778,34 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
   },
   chartWrapper: {
-    alignItems: 'center',
-    justifyContent: 'center',
     marginVertical: SPACING.sm,
+    // Room for the pushed-down date labels, so the card can never clip them
+    paddingBottom: 6,
+  },
+  plotRow: {
+    flexDirection: 'row',
+  },
+  yAxisLane: {
+    width: Y_AXIS_LANE_WIDTH,
+    overflow: 'hidden',
+  },
+  yAxisLine: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 1,
+    backgroundColor: COLORS.border,
+  },
+  yAxisTick: {
+    position: 'absolute',
+    right: 6,
+    height: Y_AXIS_TICK_LINE_HEIGHT,
+    lineHeight: Y_AXIS_TICK_LINE_HEIGHT,
+    color: COLORS.textMuted,
+    textAlign: 'right',
+  },
+  chartScroll: {
+    flex: 1,
   },
   axisLabelBox: {
     width: '100%',
@@ -691,7 +879,9 @@ const styles = StyleSheet.create({
   fullscreenContainer: {
     flex: 1,
     backgroundColor: COLORS.bgPrimary,
-    paddingTop: 16,
+    // Clears the system status bar: the modal draws edge-to-edge, so the
+    // exercise title and insight cards need their own top inset
+    paddingTop: 56,
   },
   fullscreenHeader: {
     flexDirection: 'row',
@@ -753,7 +943,6 @@ const styles = StyleSheet.create({
   },
   fullscreenChartWrap: {
     flex: 1,
-    alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: SPACING.lg,
   },
@@ -778,6 +967,9 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.bgCard,
     borderWidth: 1,
     borderColor: COLORS.border,
+    // Extra bottom margin keeps the button clear of Android's 3-button
+    // navigation bar (the modal draws underneath it)
+    marginBottom: 32,
   },
   minimizeText: {
     fontSize: 13,

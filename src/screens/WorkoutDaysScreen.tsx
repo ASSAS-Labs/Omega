@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -43,42 +43,60 @@ export default function WorkoutDaysScreen() {
     }, [])
   );
 
-  const getDayInfo = (day: DayOfWeek) => {
-    const mgIds = weeklySplit[day] || [];
-    const mgNames = muscleGroups
-      .filter((mg) => mgIds.includes(mg.id))
-      .map((mg) => mg.name);
-    // Fallback count: exercises whose muscleGroup matches one of the day's groups
-    const splitCount = allExercises.filter(
-      (ex) => ex.muscleGroup && mgNames.includes(ex.muscleGroup)
-    ).length;
-    // Prefer configured template count; fall back to split-derived count
-    const exerciseCount = templateCounts[day] > 0 ? templateCounts[day] : splitCount;
-    return { mgNames, exerciseCount };
-  };
+  /**
+   * Everything the day cards display, derived once per data change instead of
+   * being recomputed for all seven days on every render. The previous version
+   * ran a `filter`+`includes` over the whole exercise library seven times per
+   * keystroke of any parent re-render, which is exactly the kind of work that
+   * steals frames while the user is scrolling or tapping.
+   */
+  const dayInfo = useMemo(() => {
+    const info = {} as Record<DayOfWeek, { mgNames: string[]; exerciseCount: number }>;
+    for (const day of DAYS_OF_WEEK) {
+      const mgIds = weeklySplit[day] || [];
+      const mgNames = muscleGroups.filter((mg) => mgIds.includes(mg.id)).map((mg) => mg.name);
+      // Fallback count: exercises whose muscleGroup matches one of the day's groups
+      const splitCount = allExercises.filter(
+        (ex) => ex.muscleGroup && mgNames.includes(ex.muscleGroup)
+      ).length;
+      // Prefer configured template count; fall back to split-derived count
+      const exerciseCount = templateCounts[day] > 0 ? templateCounts[day] : splitCount;
+      info[day] = { mgNames, exerciseCount };
+    }
+    return info;
+  }, [allExercises, muscleGroups, templateCounts, weeklySplit]);
 
-  const hasAnyTrainingDay = DAYS_OF_WEEK.some((d) => (weeklySplit[d] || []).length > 0);
+  const hasAnyTrainingDay = useMemo(
+    () => DAYS_OF_WEEK.some((d) => (weeklySplit[d] || []).length > 0),
+    [weeklySplit]
+  );
 
-  const handleSelectDay = (day: DayOfWeek) => {
-    const { mgNames } = getDayInfo(day);
-    const today = new Date().toISOString().split('T')[0];
-    navigation.navigate('ActiveWorkout', {
-      date: today,
-      day,
-      dayName: mgNames.length > 0 ? mgNames.join(' & ') : 'Rest Day',
-      mode: 'template',
-    });
-  };
+  const handleSelectDay = useCallback(
+    (day: DayOfWeek) => {
+      const { mgNames } = dayInfo[day];
+      const today = new Date().toISOString().split('T')[0];
+      navigation.navigate('ActiveWorkout', {
+        date: today,
+        day,
+        dayName: mgNames.length > 0 ? mgNames.join(' & ') : 'Rest Day',
+        mode: 'template',
+      });
+    },
+    [dayInfo, navigation]
+  );
 
-  const handleResumeDraft = (draft: { date: string; day: DayOfWeek; dayName?: string }) => {
-    navigation.navigate('ActiveWorkout', {
-      date: draft.date,
-      day: draft.day,
-      dayName: draft.dayName,
-      mode: 'logging',
-      resume: '1',
-    });
-  };
+  const handleResumeDraft = useCallback(
+    (draft: { date: string; day: DayOfWeek; dayName?: string }) => {
+      navigation.navigate('ActiveWorkout', {
+        date: draft.date,
+        day: draft.day,
+        dayName: draft.dayName,
+        mode: 'logging',
+        resume: '1',
+      });
+    },
+    [navigation]
+  );
 
   return (
     <SafeAreaView style={styles.container}>
@@ -96,7 +114,7 @@ export default function WorkoutDaysScreen() {
         )}
 
         {DAYS_OF_WEEK.map((day) => {
-          const { mgNames, exerciseCount } = getDayInfo(day);
+          const { mgNames, exerciseCount } = dayInfo[day];
           const isTrainingDay = mgNames.length > 0;
           const isToday = day === todayDayOfWeek;
 

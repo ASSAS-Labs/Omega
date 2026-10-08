@@ -3,13 +3,16 @@ import {
   calculateWorkoutStreak,
   calculateWeeklyCompliance,
   formatISODate,
+  formatMonthYear,
   formatRelativeDate,
   formatDate,
   formatDayHeader,
+  getMonthCalendarGrid,
   getWeekDates,
   getTodayDateString,
   getTodayDayOfWeek,
   DAYS_OF_WEEK,
+  WEEKDAY_INITIALS,
 } from '../dateUtils';
 
 describe('Date Utilities', () => {
@@ -141,6 +144,79 @@ describe('Date Utilities', () => {
     });
   });
 
+  describe('Split-Aware Streaks (scheduled-day model)', () => {
+    // Mon/Tue/Thu/Fri/Sat routine: Wednesday and Sunday are training rest days.
+    const split: ('Monday' | 'Tuesday' | 'Thursday' | 'Friday' | 'Saturday')[] = [
+      'Monday',
+      'Tuesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+    ];
+    // Thursday 2026-10-08 — the Dashboard state the reference screenshot shows.
+    const thursday = '2026-10-08';
+
+    it('keeps a run alive across a rest day instead of resetting it', () => {
+      // Mon 5th + Tue 6th trained, Wednesday off, Thursday not trained yet
+      expect(calculateWorkoutStreak(['2026-10-05', '2026-10-06'], thursday, split)).toBe(2);
+    });
+
+    it('ends the run at the first scheduled day that passed untrained', () => {
+      // Thu 1st + Fri 2nd trained, Sat 3rd (scheduled) missed, then Mon 5th + Tue 6th
+      expect(
+        calculateWorkoutStreak(
+          ['2026-10-01', '2026-10-02', '2026-10-05', '2026-10-06'],
+          thursday,
+          split
+        )
+      ).toBe(2);
+    });
+
+    it('resets the run once a scheduled day passes untrained, even if nothing else changed', () => {
+      // Same two sessions, read one day later: Thursday went untrained
+      expect(calculateWorkoutStreak(['2026-10-05', '2026-10-06'], '2026-10-09', split)).toBe(0);
+    });
+
+    it('counts a session logged on a rest day', () => {
+      // Wednesday 7th is a rest day, but training on it still counts
+      expect(calculateWorkoutStreak(['2026-10-07'], thursday, split)).toBe(1);
+    });
+
+    it('expects every day when no split schedules anything', () => {
+      // The fallback keeps the old calendar-day rule: yesterday's session is a
+      // 1-day run, and a session two days back is already stale.
+      expect(calculateWorkoutStreak(['2026-10-07'], '2026-10-08', [])).toBe(1);
+      expect(calculateWorkoutStreak(['2026-10-06'], '2026-10-08', [])).toBe(0);
+      expect(calculateWorkoutStreak(['2026-10-06'], '2026-10-08')).toBe(0);
+    });
+
+    it('joins sessions separated only by rest days into one all-time run', () => {
+      // Mon/Tue/Thu/Fri routine: Sat 3rd + Sun 4th are both off days, so
+      // Fri 2nd, Mon 5th and Tue 6th are one unbroken run of 3.
+      const noSaturday: ('Monday' | 'Tuesday' | 'Thursday' | 'Friday')[] = [
+        'Monday',
+        'Tuesday',
+        'Thursday',
+        'Friday',
+      ];
+      const dates = ['2026-10-02', '2026-10-05', '2026-10-06'];
+
+      expect(calculateAllStreaks(dates, noSaturday)).toEqual([3]);
+      // Without a split the same dates are two runs
+      expect(calculateAllStreaks(dates)).toEqual([2, 1]);
+      // The Mon/Tue/Thu/Fri/Sat routine trains on Saturday, so the 3rd is a miss
+      expect(calculateAllStreaks(dates, split)).toEqual([2, 1]);
+    });
+
+    it('reports the live run at the length the current-streak rule gives it', () => {
+      const dates = ['2026-10-01', '2026-10-02', '2026-10-05', '2026-10-06'];
+      const live = calculateWorkoutStreak(dates, thursday, split);
+
+      expect(live).toBe(2);
+      expect(calculateAllStreaks(dates, split)).toContain(live);
+    });
+  });
+
   describe('Weekly Target Compliance (calculateWeeklyCompliance)', () => {
     // Current ISO week for 2026-09-01 (Tuesday): Mon Aug 31 - Sun Sep 6
     const baseDate = new Date('2026-09-01T12:00:00Z');
@@ -238,6 +314,93 @@ describe('Date Utilities', () => {
       expect(compliance.scheduledCount).toBe(0);
       expect(compliance.completedCount).toBe(0);
       expect(compliance.isTargetMet).toBe(true);
+    });
+  });
+
+  describe('Month Calendar Grid (getMonthCalendarGrid)', () => {
+    /** Grid rendered as ISO strings, so expectations stay readable. */
+    const isoGrid = (grid: (Date | null)[][]): (string | null)[][] =>
+      grid.map((week) => week.map((day) => (day ? formatISODate(day) : null)));
+
+    it('lays a 31-day month out in five Monday-first rows with the leading blanks kept', () => {
+      // October 2026 starts on a Thursday: 3 blanks, then the 1st
+      const grid = getMonthCalendarGrid(new Date('2026-10-18T12:00:00Z'));
+
+      expect(grid).toHaveLength(5);
+      expect(isoGrid(grid)[0]).toEqual([
+        null,
+        null,
+        null,
+        '2026-10-01',
+        '2026-10-02',
+        '2026-10-03',
+        '2026-10-04',
+      ]);
+      expect(isoGrid(grid)[4]).toEqual([
+        '2026-10-26',
+        '2026-10-27',
+        '2026-10-28',
+        '2026-10-29',
+        '2026-10-30',
+        '2026-10-31',
+        null,
+      ]);
+    });
+
+    it('uses exactly four rows for a 28-day month that starts on a Monday', () => {
+      // February 2027 starts on a Monday and has 28 days
+      const grid = getMonthCalendarGrid(new Date('2027-02-14T12:00:00Z'));
+
+      expect(grid).toHaveLength(4);
+      expect(grid.flat().filter((day) => day === null)).toHaveLength(0);
+      expect(isoGrid(grid)[0][0]).toBe('2027-02-01');
+      expect(isoGrid(grid)[3][6]).toBe('2027-02-28');
+    });
+
+    it('every filled cell sits in the column of its own weekday', () => {
+      // One month per starting weekday, plus both year edges
+      const months = [
+        '2026-01-15T12:00:00Z',
+        '2026-03-15T12:00:00Z',
+        '2026-05-15T12:00:00Z',
+        '2026-08-15T12:00:00Z',
+        '2026-10-15T12:00:00Z',
+        '2026-11-15T12:00:00Z',
+        '2027-02-15T12:00:00Z',
+        '2027-05-15T12:00:00Z',
+      ];
+
+      for (const month of months) {
+        const grid = getMonthCalendarGrid(new Date(month));
+
+        grid.forEach((week) => {
+          week.forEach((day, weekdayIndex) => {
+            if (!day) return;
+            expect((day.getDay() + 6) % 7).toBe(weekdayIndex); // Monday = 0
+          });
+        });
+      }
+    });
+
+    it('covers every day of the month exactly once and never spills into its neighbours', () => {
+      const baseDate = new Date('2026-10-18T12:00:00Z');
+      const days = getMonthCalendarGrid(baseDate).flat().filter((day): day is Date => day !== null);
+      const isoDates = days.map((day) => formatISODate(day));
+
+      expect(days).toHaveLength(31);
+      expect(new Set(isoDates).size).toBe(31);
+      expect(isoDates).toEqual(
+        Array.from({ length: 31 }, (_, i) => `2026-10-${String(i + 1).padStart(2, '0')}`)
+      );
+    });
+
+    it('formats the month heading as month + year', () => {
+      expect(formatMonthYear(new Date('2026-10-18T12:00:00Z'))).toBe('October 2026');
+      expect(formatMonthYear(new Date('2027-01-05T12:00:00Z'))).toBe('January 2027');
+    });
+
+    it('exposes Monday-first weekday column initials', () => {
+      expect(WEEKDAY_INITIALS).toEqual(['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU']);
     });
   });
 
