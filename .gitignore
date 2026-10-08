@@ -32,3 +32,12 @@ coverage/
 .DS_Store
 Thumbs.db
 
+# Brag / Video Generation Outputs
+brag-output/
+brag-output-*/
+
+# Environment & Local Configs
+.env
+.env.*
+*.local
+

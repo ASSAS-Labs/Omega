@@ -1,1 +1,0 @@
-Built OMEGA: A local-first, zero-cloud workout tracker with 100% offline SQLite, automated 1RM progression, and zero tracking. Your strength data stays on your device.
