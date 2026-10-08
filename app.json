@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Omega",
-    "slug": "counterapp",
+    "slug": "omega",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/appicon.jpg",
@@ -11,7 +11,7 @@
       "bundleIdentifier": "com.gymtracker.app"
     },
     "android": {
-      "package": "com.counterapp.tracker",
+      "package": "com.omega.tracker",
       "permissions": [
         "SCHEDULE_EXACT_ALARM"
       ]

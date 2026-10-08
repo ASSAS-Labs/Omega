@@ -4,13 +4,13 @@
 Create a short, punchy, launch-style brag video for OMEGA, the local-first workout tracker.
 
 ## Output
-- Composition directory: `d:/antigravityfiles/counterapp/brag-output/composition/`
-- Rendered video: `d:/antigravityfiles/counterapp/brag-output/brag.mp4`
+- Composition directory: `d:/antigravityfiles/Omega/brag-output/composition/`
+- Rendered video: `d:/antigravityfiles/Omega/brag-output/brag.mp4`
 - Format: landscape — 1920x1080
 - Duration: 18.0s
 
 ## Source Material
-- Project root: `d:/antigravityfiles/counterapp/`
+- Project root: `d:/antigravityfiles/Omega/`
 - Primary files read: `README.md`, `package.json`, `App.tsx`, `src/theme/colors.ts`
 - Product name: OMEGA
 - Tagline / strongest claim: "A local-first, privacy-focused workout tracker and progressive overload manager built with React Native and SQLite — without user accounts, advertisements, telemetry, or cloud dependencies."

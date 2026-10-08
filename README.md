@@ -78,7 +78,7 @@ Exercise catalogs and selection pools use FlashList 2.x cell recycling. Press an
 ## Architecture
 
 ```text
-counterapp/
+Omega/
   src/
     components/        Reusable UI (RestTimerModal, StreakHistoryModal, DragHandle, PressFeedback)
     constants/         Static exercise catalog
