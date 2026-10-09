@@ -1505,6 +1505,7 @@
     let isWebGLAvailable = true;
 
     try {
+      renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, powerPreference: 'high-performance' });
       const isMobileDevice = window.innerWidth < 768 || ('ontouchstart' in window);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobileDevice ? 1.5 : 2));
       renderer.setSize(canvas.clientWidth, canvas.clientHeight);
