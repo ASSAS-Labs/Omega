@@ -31,13 +31,19 @@ Build custom routines around any split (PPL, Upper/Lower, Arnold, Bro, or fully 
 ## What It Does
 
 <p align="center">
-  <img src="assets/screenshots/01_dashboard.png" width="200" alt="Dashboard"/>
-  &nbsp;&nbsp;
-  <img src="assets/screenshots/02_exercises-tab.png" width="200" alt="Exercise Library"/>
-  &nbsp;&nbsp;
-  <img src="assets/screenshots/03_settings.png" width="200" alt="Settings"/>
-  &nbsp;&nbsp;
-  <img src="assets/screenshots/04_analytics.png" width="200" alt="Analytics"/>
+  <img src="assets/screenshots/01_dashboard.png" width="130" alt="Dashboard"/>
+  &nbsp;
+  <img src="assets/screenshots/02_workout.png" width="130" alt="Workout"/>
+  &nbsp;
+  <img src="assets/screenshots/03_exercises.png" width="130" alt="Exercise Library"/>
+  &nbsp;
+  <img src="assets/screenshots/04_analytics.png" width="130" alt="Analytics"/>
+  &nbsp;
+  <img src="assets/screenshots/05_settings.png" width="130" alt="Settings"/>
+  &nbsp;
+  <img src="assets/screenshots/06_split.png" width="130" alt="Routine Split"/>
+  &nbsp;
+  <img src="assets/screenshots/07_streaks.png" width="130" alt="Top Streaks"/>
 </p>
 
 | Screen | What you see |
@@ -47,6 +53,8 @@ Build custom routines around any split (PPL, Upper/Lower, Arnold, Bro, or fully 
 | **Exercises** | Searchable movement catalog organized by muscle group, support for custom exercises that integrate across all screens |
 | **Analytics** | Estimated 1RM progression charts, total volume trends, session/week/month granularity toggle, peak-benchmark aggregation, 4-week trend comparison |
 | **Settings** | KG/LBS unit toggle, configurable rest timer with background notifications and haptic alerts, full JSON database export and import for portability |
+| **Routine Split** | Per-day muscle group target assignment (Mon–Sun) with multi-group selection, real-time assignment badges, and automatic sync to workout builder |
+| **Streak History** | Top 5 unbroken training streaks leaderboard, current active streak counter, and split-aware streak persistence rules |
 
 ---
 

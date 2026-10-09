@@ -19,12 +19,17 @@
     "paths": {
       "@/*": [
         "src/*"
+      ],
+      "@/components/*": [
+        "components/*",
+        "src/components/*"
       ]
     }
   },
   "include": [
     "src/**/*",
     "app/**/*",
+    "components/**/*",
     "App.tsx",
     "index.js"
   ],

@@ -1,0 +1,2076 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#070709">
+  <meta name="description" content="OMEGA is a local-first progressive overload tracker for Android. Zero ads, zero subscriptions, zero cloud. Your training data stays yours.">
+  <title>OMEGA — Own Your Iron. Own Your Data.</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* ═══════════════════════════════════════════════════════════════
+       OMEGA DESIGN SYSTEM — Obsidian + Electric Blue Cinematic Theme
+       ═══════════════════════════════════════════════════════════════ */
+    :root {
+      color-scheme: dark;
+      --bg: #000000;
+      --bg-deep: #000000;
+      --surface: rgba(16, 16, 20, 0.72);
+      --surface-border: rgba(255, 255, 255, 0.08);
+      --surface-card: #111114;
+      --text: #ffffff;
+      --muted: #8e8e93;
+      --soft: #cbd5e1;
+      --accent-blue: #3b82f6;
+      --accent-blue-bright: #60a5fa;
+      --emerald: #3b82f6;
+      --lime: #60a5fa;
+      --amber: #f59e0b;
+      --cyan: #38bdf8;
+      --sky: #38BDF8;
+      --danger: #ef4444;
+      --max: 1200px;
+      --sans: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; background: #000000; }
+    body {
+      background: #000000;
+      color: var(--text);
+      font-family: var(--sans);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      overflow-x: hidden;
+      line-height: 1.6;
+    }
+    a { color: inherit; text-decoration: none; }
+    button { font: inherit; cursor: pointer; border: none; background: none; }
+    img { display: block; max-width: 100%; }
+    .wrap { width: min(var(--max), calc(100% - 48px)); margin-inline: auto; }
+
+    /* ── Film Grain Overlay ───────────────────────────────────── */
+    .noise-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 999;
+      pointer-events: none;
+      opacity: 0.025;
+      mix-blend-mode: overlay;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      background-size: 256px 256px;
+    }
+
+    /* ── Fullscreen Twinkling Stars Canvas (Deep Space Void) ──── */
+    #stars-canvas {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── Cosmic Starlight Cursor Sheen (desktop only) ─────────── */
+    .cursor-glow {
+      position: fixed;
+      width: 380px;
+      height: 380px;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 0;
+      background: radial-gradient(circle, rgba(255, 255, 255, 0.035) 0%, rgba(59, 130, 246, 0.015) 35%, transparent 70%);
+      transform: translate(-50%, -50%);
+      transition: opacity 0.3s;
+      opacity: 0;
+    }
+    @media (hover: hover) {
+      .cursor-glow { opacity: 1; }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       NAVIGATION
+       ═══════════════════════════════════════════════════════════════ */
+    .site-nav {
+      position: fixed;
+      z-index: 100;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(1200px, calc(100% - 40px));
+    }
+    .nav-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 64px;
+      padding: 0 24px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 999px;
+      background: rgba(7, 7, 9, 0.75);
+      backdrop-filter: blur(20px) saturate(1.2);
+      transition: background 0.3s, border-color 0.3s;
+    }
+    .nav-bar.scrolled {
+      background: rgba(7, 7, 9, 0.92);
+      border-color: rgba(255, 255, 255, 0.1);
+    }
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 800;
+      font-size: 13px;
+      letter-spacing: 0.18em;
+      color: var(--text);
+    }
+    .nav-omega {
+      font-family: Georgia, serif;
+      font-size: 26px;
+      font-weight: 400;
+      color: #ffffff;
+      text-shadow: 0 0 16px rgba(255, 255, 255, 0.6);
+    }
+    .nav-tag {
+      padding: 4px 8px;
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      border-radius: 999px;
+      color: #93c5fd;
+      font: 500 9px/1 var(--mono);
+      letter-spacing: 0.06em;
+      background: rgba(59, 130, 246, 0.08);
+    }
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 32px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--muted);
+    }
+    .nav-links a { transition: color 0.2s; }
+    .nav-links a:hover { color: var(--text); }
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .nav-gh {
+      display: grid;
+      place-items: center;
+      width: 38px;
+      height: 38px;
+      border: 1px solid var(--surface-border);
+      border-radius: 50%;
+      color: var(--muted);
+      transition: color 0.2s, background 0.2s;
+    }
+    .nav-gh:hover { color: #fff; background: rgba(255,255,255,0.06); }
+    .nav-gh svg { width: 17px; height: 17px; fill: currentColor; }
+    .nav-cta-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 18px;
+      border: 1px solid rgba(59, 130, 246, 0.4);
+      border-radius: 999px;
+      font-weight: 600;
+      font-size: 11px;
+      color: #fff;
+      background: linear-gradient(135deg, rgba(37, 99, 235, 0.35), rgba(37, 99, 235, 0.12));
+      transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+    }
+    .nav-cta-btn:hover {
+      transform: translateY(-2px);
+      border-color: rgba(96, 165, 250, 0.7);
+      box-shadow: 0 4px 20px rgba(59, 130, 246, 0.35);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       HERO SECTION
+       ═══════════════════════════════════════════════════════════════ */
+    .hero {
+      position: relative;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 120px 24px 100px;
+      overflow: hidden;
+    }
+    #hero-canvas {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      width: 100%;
+      height: 100%;
+    }
+    .hero-content {
+      position: relative;
+      z-index: 2;
+      text-align: center;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    /* ── Bottom Pill Badge ────────────────────────────────────── */
+    .hero-badge-wrap {
+      position: absolute;
+      bottom: 72px;
+      left: 0;
+      right: 0;
+      display: flex;
+      justify-content: center;
+      z-index: 10;
+      pointer-events: none;
+    }
+    .hero-badge {
+      pointer-events: auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 20px;
+      margin-top: 0;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 999px;
+      background: rgba(14, 14, 18, 0.85);
+      backdrop-filter: blur(14px);
+      font: 600 10.5px/1 var(--mono);
+      letter-spacing: 0.08em;
+      color: rgba(255, 255, 255, 0.9);
+      opacity: 0;
+      transform: translateY(20px);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+    }
+    .hero-badge .ping {
+      position: relative;
+      width: 8px;
+      height: 8px;
+    }
+    .hero-badge .ping::before,
+    .hero-badge .ping::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      background: var(--accent-blue);
+    }
+    .hero-badge .ping::after {
+      animation: pingPulse 2s ease-out infinite;
+    }
+    @keyframes pingPulse {
+      0% { transform: scale(1); opacity: 0.8; }
+      100% { transform: scale(2.8); opacity: 0; }
+    }
+
+    /* ── Kinetic Headline ─────────────────────────────────────── */
+    .hero-title {
+      margin-top: 0;
+      font-size: clamp(30px, 4.2vw, 52px);
+      font-weight: 900;
+      line-height: 1.05;
+      letter-spacing: -0.04em;
+      opacity: 0;
+      transform: translateY(30px);
+      pointer-events: none;
+      user-select: none;
+    }
+    .hero-title .line-1 {
+      display: block;
+      color: #ffffff;
+    }
+    .hero-title .line-2 {
+      display: block;
+      background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 35%, #94a3b8 70%, #ffffff 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      text-shadow: 0 0 35px rgba(255, 255, 255, 0.25);
+    }
+
+    .hero-subtitle {
+      max-width: 460px;
+      margin: 16px auto 0;
+      font-size: clamp(12.5px, 1.1vw, 14.5px);
+      font-weight: 400;
+      line-height: 1.65;
+      color: var(--muted);
+      opacity: 0;
+      transform: translateY(20px);
+      pointer-events: none;
+      user-select: none;
+    }
+    .hero-subtitle strong {
+      color: var(--soft);
+      font-weight: 600;
+    }
+
+    /* ── CTA Buttons ──────────────────────────────────────────── */
+    .hero-ctas {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 14px;
+      margin-top: 36px;
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    .btn {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      height: 56px;
+      padding: 0 28px;
+      border-radius: 14px;
+      font-weight: 700;
+      font-size: 13px;
+      letter-spacing: -0.01em;
+      transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s, border-color 0.25s;
+      overflow: hidden;
+    }
+    .btn svg { width: 18px; height: 18px; flex-shrink: 0; }
+    .btn-primary {
+      color: #fff;
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      border: 1px solid rgba(96, 165, 250, 0.5);
+      box-shadow: 0 0 35px rgba(37, 99, 235, 0.35), inset 0 1px rgba(255, 255, 255, 0.25);
+    }
+    .btn-primary::before {
+      content: '';
+      position: absolute;
+      inset: -1px;
+      background: linear-gradient(105deg, transparent 40%, rgba(255, 255, 255, 0.4) 50%, transparent 60%);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .btn-primary:hover {
+      transform: translateY(-3px) scale(1.02);
+      box-shadow: 0 8px 45px rgba(37, 99, 235, 0.55), inset 0 1px rgba(255, 255, 255, 0.35);
+      border-color: rgba(147, 197, 253, 0.8);
+    }
+    .btn-primary::before {
+      content: '';
+      position: absolute;
+      inset: -1px;
+      background: linear-gradient(105deg, transparent 40%, rgba(255, 255, 255, 0.4) 50%, transparent 60%);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .btn-primary:hover {
+      transform: translateY(-3px) scale(1.02);
+      box-shadow: 0 8px 40px rgba(59, 130, 246, 0.4), inset 0 1px rgba(255, 255, 255, 0.2);
+    }
+    .btn-primary:hover::before {
+      opacity: 1;
+      animation: lensFlare 0.6s ease-out forwards;
+    }
+    @keyframes lensFlare {
+      0% { transform: translateX(-100%) skewX(-15deg); }
+      100% { transform: translateX(200%) skewX(-15deg); }
+    }
+    .btn-primary .sub-text {
+      display: block;
+      font-size: 9px;
+      font-weight: 500;
+      opacity: 0.7;
+      font-family: var(--mono);
+      margin-top: 1px;
+    }
+    .btn-ghost {
+      color: var(--soft);
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--surface-border);
+      backdrop-filter: blur(8px);
+    }
+    .btn-ghost:hover {
+      transform: translateY(-3px);
+      border-color: rgba(255, 255, 255, 0.15);
+      background: rgba(255, 255, 255, 0.06);
+      color: #fff;
+    }
+
+    /* ── Specs Strip ──────────────────────────────────────────── */
+    .specs-strip {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 40px;
+      opacity: 0;
+      transform: translateY(15px);
+    }
+    .spec-badge {
+      padding: 6px 14px;
+      border: 1px solid var(--surface-border);
+      border-radius: 999px;
+      font: 500 10px/1.4 var(--mono);
+      color: var(--muted);
+      background: rgba(255, 255, 255, 0.02);
+      letter-spacing: 0.02em;
+    }
+    .spec-badge .spec-icon {
+      margin-right: 6px;
+      opacity: 0.6;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       MOCKUP SHOWCASE — Scroll-Driven 3D Tilt
+       ═══════════════════════════════════════════════════════════════ */
+    .mockup-section {
+      position: relative;
+      padding: 120px 0;
+      overflow: hidden;
+    }
+    .mockup-section .section-label {
+      text-align: center;
+      color: var(--accent-blue-bright);
+      font: 600 10px/1 var(--mono);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+    .mockup-section .section-title {
+      text-align: center;
+      font-size: clamp(32px, 5vw, 52px);
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      line-height: 1.05;
+      margin-bottom: 14px;
+    }
+    .mockup-section .section-desc {
+      text-align: center;
+      color: var(--muted);
+      font-size: 15px;
+      max-width: 520px;
+      margin: 0 auto 50px;
+    }
+
+    .bend-carousel-wrapper {
+      position: relative;
+      width: 100%;
+      height: 660px;
+      perspective: 1100px;
+      perspective-origin: 50% 50%;
+      overflow: hidden;
+      user-select: none;
+      outline: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: grab;
+      margin-inline: auto;
+    }
+    .bend-carousel-wrapper:active {
+      cursor: grabbing;
+    }
+    .bend-stage {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transform-style: preserve-3d;
+      pointer-events: none;
+    }
+    .bend-card {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 260px;
+      height: 578px;
+      border-radius: 24px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: #0d0f12;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.8), 0 0 40px rgba(59, 130, 246, 0.08);
+      pointer-events: auto;
+      cursor: pointer;
+      will-change: transform, opacity, filter;
+      backface-visibility: hidden;
+      transition: box-shadow 0.3s;
+    }
+    .bend-card.is-center {
+      box-shadow: 0 35px 80px rgba(0, 0, 0, 0.9), 0 0 60px rgba(59, 130, 246, 0.25), inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+    }
+    .bend-card-img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: top center;
+      pointer-events: none;
+      user-select: none;
+    }
+    .bend-card-gradient {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to top, rgba(0, 0, 0, 0.92) 0%, rgba(0, 0, 0, 0.35) 45%, rgba(0, 0, 0, 0.1) 100%);
+      pointer-events: none;
+    }
+    .bend-card-header {
+      position: absolute;
+      top: 14px;
+      left: 14px;
+      right: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 10;
+      pointer-events: none;
+    }
+    .bend-card-badge {
+      padding: 4px 10px;
+      font: 700 11px/1 var(--mono);
+      letter-spacing: 0.08em;
+      border-radius: 999px;
+      backdrop-filter: blur(10px);
+      background: rgba(0, 0, 0, 0.5);
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+    .bend-card-tag {
+      padding: 3px 8px;
+      font: 600 10px/1 var(--mono);
+      letter-spacing: 0.05em;
+      border-radius: 6px;
+      backdrop-filter: blur(8px);
+      background: rgba(59, 130, 246, 0.15);
+      color: #93c5fd;
+      border: 1px solid rgba(59, 130, 246, 0.35);
+      text-transform: uppercase;
+    }
+    .bend-card-body {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 10;
+      padding: 18px 20px;
+      color: #fff;
+      pointer-events: none;
+    }
+    .bend-card-sub {
+      font: 600 10px/1 var(--mono);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #60a5fa;
+      margin-bottom: 5px;
+    }
+    .bend-card-title {
+      font-size: 16px;
+      font-weight: 800;
+      line-height: 1.25;
+      letter-spacing: -0.02em;
+      color: #fff;
+      margin-bottom: 6px;
+      display: -webkit-box;
+      -webkit-line-clamp: 1;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .bend-card-desc {
+      font-size: 11px;
+      line-height: 1.55;
+      color: rgba(255, 255, 255, 0.7);
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .bend-card-glare {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      transition: opacity 0.15s;
+      mix-blend-mode: overlay;
+    }
+    @media (max-width: 900px) {
+      .bend-carousel-wrapper { height: 580px; }
+      .bend-card { width: 220px; height: 490px; }
+    }
+    @media (max-width: 640px) {
+      .hero-badge { font-size: 9.5px; padding: 8px 14px; max-width: 100%; text-align: center; line-height: 1.5; flex-wrap: wrap; justify-content: center; }
+      .bend-carousel-wrapper { height: 520px; }
+      .bend-card { width: 195px; height: 434px; border-radius: 18px; }
+      .bend-card-body { padding: 12px 14px; }
+      .bend-card-title { font-size: 14px; }
+      .bend-card-desc { display: none; }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       BENTO GRID — Features
+       ═══════════════════════════════════════════════════════════════ */
+    .bento-section {
+      padding: 120px 0;
+      position: relative;
+    }
+    .bento-section .section-label {
+      color: var(--accent-blue-bright);
+      font: 600 10px/1 var(--mono);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+    .bento-section .section-title {
+      font-size: clamp(32px, 5vw, 52px);
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      line-height: 1.05;
+      margin-bottom: 14px;
+    }
+    .bento-section .section-desc {
+      color: var(--muted);
+      font-size: 15px;
+      max-width: 520px;
+      margin-bottom: 50px;
+    }
+    .bento-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+    }
+    .bento-card {
+      position: relative;
+      padding: 32px;
+      border: 1px solid var(--surface-border);
+      border-radius: 20px;
+      background: var(--surface);
+      backdrop-filter: blur(16px);
+      overflow: hidden;
+      transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.3s;
+    }
+    .bento-card:hover {
+      transform: translateY(-4px);
+      border-color: rgba(59, 130, 246, 0.3);
+    }
+    .bento-card::before {
+      content: '';
+      position: absolute;
+      width: 200px;
+      height: 200px;
+      border-radius: 50%;
+      filter: blur(50px);
+      opacity: 0;
+      transition: opacity 0.5s;
+    }
+    .bento-card:hover::before { opacity: 1; }
+    .bento-card:nth-child(1)::before { background: rgba(59, 130, 246, 0.14); top: -80px; right: -60px; }
+    .bento-card:nth-child(2)::before { background: rgba(6, 182, 212, 0.12); top: -80px; left: -60px; }
+    .bento-card:nth-child(3)::before { background: rgba(59, 130, 246, 0.14); bottom: -80px; right: -60px; }
+    .bento-card:nth-child(4)::before { background: rgba(56, 189, 248, 0.12); bottom: -80px; left: -60px; }
+    .bento-icon {
+      display: grid;
+      place-items: center;
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      font-size: 20px;
+      background: rgba(59, 130, 246, 0.1);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+      margin-bottom: 20px;
+    }
+    .bento-card h3 {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 10px;
+    }
+    .bento-card .card-subtitle {
+      font: 500 10px/1 var(--mono);
+      color: #60a5fa;
+      letter-spacing: 0.05em;
+      margin-bottom: 12px;
+    }
+    .bento-card p {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.75;
+    }
+
+    /* ── Compliance Calendar mini ─────────────────────────────── */
+    .mini-calendar {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+      margin-top: 16px;
+      max-width: 260px;
+    }
+    .cal-cell {
+      aspect-ratio: 1;
+      border-radius: 6px;
+      display: grid;
+      place-items: center;
+      font: 600 9px/1 var(--mono);
+      color: var(--muted);
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.04);
+    }
+    .cal-cell.done {
+      background: rgba(59, 130, 246, 0.15);
+      border-color: rgba(59, 130, 246, 0.3);
+      color: #93c5fd;
+    }
+    .cal-cell.missed {
+      background: rgba(239, 68, 68, 0.08);
+      border-color: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+    }
+    .cal-cell.rest { color: rgba(255,255,255,0.15); }
+
+    /* ── Mini Chart ───────────────────────────────────────────── */
+    .mini-chart {
+      margin-top: 16px;
+      height: 80px;
+      display: flex;
+      align-items: flex-end;
+      gap: 6px;
+    }
+    .chart-bar {
+      flex: 1;
+      border-radius: 4px 4px 0 0;
+      background: linear-gradient(to top, var(--accent-blue), var(--cyan));
+      opacity: 0.5;
+      transition: opacity 0.3s, height 0.5s;
+      min-height: 8px;
+    }
+    .bento-card:hover .chart-bar { opacity: 0.8; }
+
+    /* ═══════════════════════════════════════════════════════════════
+       INSTALL GUIDE
+       ═══════════════════════════════════════════════════════════════ */
+    .install-section {
+      padding: 120px 0;
+      border-top: 1px solid var(--surface-border);
+    }
+    .install-section .section-label {
+      color: var(--accent-blue-bright);
+      font: 600 10px/1 var(--mono);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+    .install-section .section-title {
+      font-size: clamp(32px, 5vw, 52px);
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      line-height: 1.05;
+      margin-bottom: 14px;
+    }
+    .install-section .section-desc {
+      color: var(--muted);
+      font-size: 15px;
+      max-width: 520px;
+      margin-bottom: 50px;
+    }
+    .install-steps {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+    .install-step {
+      position: relative;
+      padding: 32px;
+      border: 1px solid var(--surface-border);
+      border-radius: 20px;
+      background: var(--surface);
+      backdrop-filter: blur(16px);
+      transition: transform 0.3s, border-color 0.3s;
+    }
+    .install-step:hover {
+      transform: translateY(-4px);
+      border-color: rgba(59, 130, 246, 0.25);
+    }
+    .step-num {
+      display: grid;
+      place-items: center;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: 1px solid rgba(59, 130, 246, 0.35);
+      background: rgba(59, 130, 246, 0.12);
+      color: #93c5fd;
+      font: 700 13px/1 var(--mono);
+      margin-bottom: 20px;
+    }
+    .install-step h3 {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 10px;
+      letter-spacing: -0.02em;
+    }
+    .install-step p {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.75;
+    }
+    .install-note {
+      margin-top: 20px;
+      padding: 16px 20px;
+      border: 1px solid rgba(234, 179, 8, 0.15);
+      border-radius: 12px;
+      background: rgba(234, 179, 8, 0.04);
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+    .install-note .note-icon {
+      flex-shrink: 0;
+      font-size: 16px;
+      margin-top: 2px;
+    }
+    .install-note p {
+      font-size: 12px;
+      line-height: 1.7;
+      color: rgba(234, 179, 8, 0.8);
+    }
+    .install-note strong { color: rgba(234, 179, 8, 0.95); }
+
+    /* ═══════════════════════════════════════════════════════════════
+       FINAL CTA
+       ═══════════════════════════════════════════════════════════════ */
+    .final-cta {
+      padding: 80px 0 120px;
+    }
+    .cta-panel {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 40px;
+      padding: 48px 52px;
+      border: 1px solid rgba(59, 130, 246, 0.2);
+      border-radius: 24px;
+      background: var(--surface);
+      backdrop-filter: blur(16px);
+      overflow: hidden;
+    }
+    .cta-panel::before {
+      content: 'Ω';
+      position: absolute;
+      right: 8%;
+      top: -60px;
+      font: 220px/1 Georgia, serif;
+      color: rgba(59, 130, 246, 0.05);
+      pointer-events: none;
+    }
+    .cta-panel h2 {
+      font-size: clamp(26px, 3.5vw, 40px);
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      position: relative;
+      z-index: 1;
+    }
+    .cta-panel .cta-desc {
+      color: var(--muted);
+      font-size: 14px;
+      margin-top: 8px;
+      position: relative;
+      z-index: 1;
+    }
+    .cta-buttons {
+      display: flex;
+      gap: 12px;
+      flex-shrink: 0;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       FOOTER
+       ═══════════════════════════════════════════════════════════════ */
+    .site-footer {
+      border-top: 1px solid var(--surface-border);
+      padding: 28px 0;
+    }
+    .footer-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+    .footer-brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 700;
+      font-size: 12px;
+      letter-spacing: 0.14em;
+      color: var(--soft);
+    }
+    .footer-brand .omega-sym {
+      font-family: Georgia, serif;
+      font-size: 20px;
+      color: #ffffff;
+      text-shadow: 0 0 12px rgba(255, 255, 255, 0.5); }
+    .footer-links {
+      display: flex;
+      gap: 24px;
+    }
+    .footer-links a:hover { color: #fff; }
+    .back-to-top {
+      padding: 8px 14px;
+      border: 1px solid var(--surface-border);
+      border-radius: 999px;
+      font: 500 10px/1 var(--mono);
+      color: var(--muted);
+      transition: color 0.2s, border-color 0.2s;
+    }
+    .back-to-top:hover { color: #fff; border-color: rgba(255,255,255,0.15); }
+
+    /* ═══════════════════════════════════════════════════════════════
+       REVEAL ANIMATIONS
+       ═══════════════════════════════════════════════════════════════ */
+    .reveal {
+      opacity: 0;
+      transform: translateY(40px);
+    }
+    .reveal.revealed {
+      opacity: 1;
+      transform: translateY(0);
+      transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       RESPONSIVE
+       ═══════════════════════════════════════════════════════════════ */
+    @media (max-width: 900px) {
+      .nav-links { display: none; }
+      .bento-grid { grid-template-columns: 1fr; }
+      .install-steps { grid-template-columns: 1fr; }
+      .cta-panel { flex-direction: column; align-items: flex-start; padding: 32px; }
+      .cta-buttons { width: 100%; }
+      .cta-buttons .btn { flex: 1; }
+      .phone-showcase { width: 260px; }
+    }
+    @media (max-width: 640px) {
+      .wrap { width: min(100% - 32px, var(--max)); }
+      .nav-bar { height: 56px; padding: 0 16px; }
+      .nav-cta-btn { padding: 8px 14px; font-size: 10px; }
+      .hero { padding: 120px 16px 50px; min-height: auto; }
+      .hero-title { font-size: clamp(42px, 12vw, 66px); }
+      .hero-ctas { gap: 10px; }
+      .btn { height: 50px; padding: 0 20px; font-size: 12px; }
+      .phone-showcase { width: 220px; }
+      .bento-card { padding: 24px; }
+      .install-step { padding: 24px; }
+      .footer-inner { flex-wrap: wrap; }
+      .specs-strip { gap: 6px; }
+      .spec-badge { padding: 5px 10px; font-size: 9px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Twinkling Stars Cosmic Canvas (Deep Space Void) -->
+  <canvas id="stars-canvas" aria-hidden="true"></canvas>
+
+  <!-- Noise / Film Grain Overlay -->
+  <div class="noise-overlay" aria-hidden="true"></div>
+
+  <!-- Cursor Glow -->
+  <div class="cursor-glow" id="cursorGlow" aria-hidden="true"></div>
+
+  <!-- ═══ NAVIGATION ═══ -->
+  <nav class="site-nav" aria-label="Main navigation">
+    <div class="nav-bar" id="navBar">
+      <a class="nav-brand" href="#top">
+        <span class="nav-omega" aria-hidden="true">Ω</span>
+        <span>OMEGA</span>
+      </a>
+      <div class="nav-links">
+        <a href="#showcase">Showcase</a>
+        <a href="#features">Features</a>
+        <a href="#install">Install</a>
+      </div>
+      <div class="nav-actions">
+        <a class="nav-gh" href="https://github.com/ASSAS-Labs/Omega" aria-label="OMEGA on GitHub" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .9a11.1 11.1 0 0 0-3.51 21.63c.56.1.76-.24.76-.54v-2.12c-3.1.68-3.76-1.32-3.76-1.32-.51-1.3-1.24-1.65-1.24-1.65-1.01-.69.08-.68.08-.68 1.12.08 1.71 1.15 1.71 1.15 1 .1.76 2.02 3.7 1.42.1-.71.39-1.2.7-1.48-2.48-.28-5.09-1.24-5.09-5.52 0-1.22.44-2.21 1.15-2.99-.12-.28-.5-1.42.11-2.95 0 0 .94-.3 3.05 1.14a10.6 10.6 0 0 1 5.55 0c2.12-1.44 3.05-1.14 3.05-1.14.61 1.53.23 2.67.12 2.95.71.78 1.14 1.77 1.14 2.99 0 4.29-2.62 5.24-5.12 5.51.4.35.75 1.03.75 2.08v3.11c0 .3.2.65.77.54A11.1 11.1 0 0 0 12 .9Z"/></svg>
+        </a>
+        <a class="nav-cta-btn" href="https://github.com/ASSAS-Labs/Omega/releases" target="_blank" rel="noopener">
+          Download APK <span aria-hidden="true">↗</span>
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ═══ MAIN CONTENT ═══ -->
+  <main id="top">
+
+    <!-- ═══ HERO ═══ -->
+    <section class="hero" aria-labelledby="hero-heading">
+      <canvas id="hero-canvas" aria-hidden="true"></canvas>
+
+      <div class="hero-content">
+        <h1 class="hero-title" id="hero-heading">
+          <span class="line-1">OWN YOUR IRON.</span>
+          <span class="line-2">OWN YOUR DATA.</span>
+        </h1>
+
+        <p class="hero-subtitle">
+          Distraction-free progressive overload tracking powered by <strong>embedded SQLite</strong>,
+          <strong>React Native Fabric</strong>, and zero cloud accounts. Your training data stays on your device—period.
+        </p>
+      </div>
+
+      <div class="hero-badge-wrap">
+        <div class="hero-badge" id="heroBadge">
+          <span class="ping" aria-hidden="true"></span>
+          <span>100% LOCAL-FIRST · ZERO ADS · ZERO SUBSCRIPTIONS · 290 AUTOMATED TESTS</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ SCREENSHOT SHOWCASE SECTION (with Lightswind 3D Bend Carousel) ═══ -->
+    <section class="mockup-section" id="showcase">
+      <div class="wrap">
+        <div class="section-label reveal">Inside OMEGA</div>
+        <h2 class="section-title reveal">Everything you need.<br>Nothing you don't.</h2>
+        <p class="section-desc reveal">Explore seven focused screens—from daily workout execution and custom split setup to all-time streak records.</p>
+        <!-- ── VIEW 1: LIGHTSWIND 3D BEND CAROUSEL ── -->
+        <div id="carouselView" class="reveal">
+          <div class="bend-carousel-wrapper" id="bendCarousel" tabindex="0" role="region" aria-label="3D Bend Carousel Gallery">
+            <div class="bend-stage" id="bendStage">
+              <!-- Card 1 -->
+              <div class="bend-card" data-index="0">
+                <img class="bend-card-img" src="assets/screenshots/01_dashboard.png" alt="Compliance Dashboard" loading="lazy">
+                <div class="bend-card-gradient"></div>
+                <div class="bend-card-header">
+                  <span class="bend-card-badge">01</span>
+                  <span class="bend-card-tag">Dashboard</span>
+                </div>
+                <div class="bend-card-body">
+                  <div class="bend-card-sub">Overview & Streak</div>
+                  <div class="bend-card-title">Compliance Dashboard</div>
+                  <div class="bend-card-desc">Monthly compliance calendar with streak badges and one-tap session launch.</div>
+                </div>
+                <div class="bend-card-glare"></div>
+              </div>
+
+              <!-- Card 2 -->
+              <div class="bend-card" data-index="1">
+                <img class="bend-card-img" src="assets/screenshots/02_workout.png" alt="Workout Logger" loading="lazy">
+                <div class="bend-card-gradient"></div>
+                <div class="bend-card-header">
+                  <span class="bend-card-badge">02</span>
+                  <span class="bend-card-tag">Workout</span>
+                </div>
+                <div class="bend-card-body">
+                  <div class="bend-card-sub">Live Training</div>
+                  <div class="bend-card-title">Dynamic Routine Logger</div>
+                  <div class="bend-card-desc">Real-time set logging with weight/reps input and previous-session benchmarks.</div>
+                </div>
+                <div class="bend-card-glare"></div>
+              </div>
+
+              <!-- Card 3 -->
+              <div class="bend-card" data-index="2">
+                <img class="bend-card-img" src="assets/screenshots/03_exercises.png" alt="Exercise Library" loading="lazy">
+                <div class="bend-card-gradient"></div>
+                <div class="bend-card-header">
+                  <span class="bend-card-badge">03</span>
+                  <span class="bend-card-tag">Exercises</span>
+                </div>
+                <div class="bend-card-body">
+                  <div class="bend-card-sub">Movement Catalog</div>
+                  <div class="bend-card-title">Searchable Exercises</div>
+                  <div class="bend-card-desc">Anatomy-indexed movements with instant search and custom exercise creation.</div>
+                </div>
+                <div class="bend-card-glare"></div>
+              </div>
+
+              <!-- Card 4 -->
+              <div class="bend-card" data-index="3">
+                <img class="bend-card-img" src="assets/screenshots/04_analytics.png" alt="Progression Analytics" loading="lazy">
+                <div class="bend-card-gradient"></div>
+                <div class="bend-card-header">
+                  <span class="bend-card-badge">04</span>
+                  <span class="bend-card-tag">Analytics</span>
+                </div>
+                <div class="bend-card-body">
+                  <div class="bend-card-sub">Volume & 1RM</div>
+                  <div class="bend-card-title">Progression Analytics</div>
+                  <div class="bend-card-desc">Estimated 1RM curves via Epley formula and aggregated volume trend curves.</div>
+                </div>
+                <div class="bend-card-glare"></div>
+              </div>
+
+              <!-- Card 5 -->
+              <div class="bend-card" data-index="4">
+                <img class="bend-card-img" src="assets/screenshots/05_settings.png" alt="Settings & Backup" loading="lazy">
+                <div class="bend-card-gradient"></div>
+                <div class="bend-card-header">
+                  <span class="bend-card-badge">05</span>
+                  <span class="bend-card-tag">Settings</span>
+                </div>
+                <div class="bend-card-body">
+                  <div class="bend-card-sub">Offline Architecture</div>
+                  <div class="bend-card-title">System & Portability</div>
+                  <div class="bend-card-desc">Full JSON database export/import, background rest alerts, and KG/LBS toggle.</div>
+                </div>
+                <div class="bend-card-glare"></div>
+              </div>
+
+              <!-- Card 6 -->
+              <div class="bend-card" data-index="5">
+                <img class="bend-card-img" src="assets/screenshots/06_split.png" alt="Routine Split" loading="lazy">
+                <div class="bend-card-gradient"></div>
+                <div class="bend-card-header">
+                  <span class="bend-card-badge">06</span>
+                  <span class="bend-card-tag">Split</span>
+                </div>
+                <div class="bend-card-body">
+                  <div class="bend-card-sub">Target Muscles</div>
+                  <div class="bend-card-title">Routine Split Setup</div>
+                  <div class="bend-card-desc">Define weekly focus per day (Mon–Sun) with multi-group target assignment.</div>
+                </div>
+                <div class="bend-card-glare"></div>
+              </div>
+
+              <!-- Card 7 -->
+              <div class="bend-card" data-index="6">
+                <img class="bend-card-img" src="assets/screenshots/07_streaks.png" alt="Streak History" loading="lazy">
+                <div class="bend-card-gradient"></div>
+                <div class="bend-card-header">
+                  <span class="bend-card-badge">07</span>
+                  <span class="bend-card-tag">Streaks</span>
+                </div>
+                <div class="bend-card-body">
+                  <div class="bend-card-sub">Consistency Rankings</div>
+                  <div class="bend-card-title">Top 5 All-Time Streaks</div>
+                  <div class="bend-card-desc">Ranked unbroken training streaks leaderboard and active streak counter.</div>
+                </div>
+                <div class="bend-card-glare"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ BENTO GRID FEATURES ═══ -->
+    <section class="bento-section" id="features">
+      <div class="wrap">
+        <div class="section-label reveal">Engineered for lifters</div>
+        <h2 class="section-title reveal">Your training.<br>Nothing in the way.</h2>
+        <p class="section-desc reveal">Everything you need to plan, log, and understand your training—without accounts, noise, or a connection to the cloud.</p>
+
+        <div class="bento-grid">
+          <!-- Card 1: SQLite -->
+          <div class="bento-card reveal">
+            <div class="bento-icon">◈</div>
+            <div class="card-subtitle">gym_tracker.db</div>
+            <h3>Embedded SQLite Storage</h3>
+            <p>Local ACID-compliant persistence with WAL journaling, foreign-key cascades, and versioned schema migrations. Zero telemetry, zero network calls — ever. Your data stays in an on-device database.</p>
+          </div>
+
+          <!-- Card 2: Rest Timer -->
+          <div class="bento-card reveal">
+            <div class="bento-icon">◷</div>
+            <div class="card-subtitle">INFINITE MOMENTUM</div>
+            <h3>Smart Rest Timer</h3>
+            <p>Configurable minute/second picker with background countdown notifications via Notifee. Keeps running when the app is backgrounded. Timer completion triggers native haptic feedback. Never miss a set.</p>
+          </div>
+
+          <!-- Card 3: Compliance -->
+          <div class="bento-card reveal">
+            <div class="bento-icon">▣</div>
+            <div class="card-subtitle">30-DAY MATRIX</div>
+            <h3>Compliance Tracking</h3>
+            <p>Monday-first calendar grid with distinct status markers for logged, missed, upcoming, and rest days. Streak calculations respect your configured split — rest days neither extend nor break your streak.</p>
+            <div class="mini-calendar" aria-hidden="true">
+              <div class="cal-cell done">✓</div><div class="cal-cell done">✓</div><div class="cal-cell rest">—</div>
+              <div class="cal-cell done">✓</div><div class="cal-cell done">✓</div><div class="cal-cell done">✓</div>
+              <div class="cal-cell rest">—</div><div class="cal-cell done">✓</div><div class="cal-cell done">✓</div>
+              <div class="cal-cell rest">—</div><div class="cal-cell done">✓</div><div class="cal-cell missed">✕</div>
+              <div class="cal-cell done">✓</div><div class="cal-cell rest">—</div><div class="cal-cell done">✓</div>
+              <div class="cal-cell done">✓</div><div class="cal-cell rest">—</div><div class="cal-cell done">✓</div>
+              <div class="cal-cell done">✓</div><div class="cal-cell done">✓</div>
+            </div>
+          </div>
+
+          <!-- Card 4: Analytics -->
+          <div class="bento-card reveal">
+            <div class="bento-icon">⌁</div>
+            <div class="card-subtitle">PINNED Y-AXIS</div>
+            <h3>Progression Analytics</h3>
+            <p>Estimated 1RM progression curves (Epley formula) and total volume trends with session, ISO week, or calendar month granularity. Dynamic headroom so data points never clip the chart boundary.</p>
+            <div class="mini-chart" aria-hidden="true">
+              <div class="chart-bar" style="height: 35%"></div>
+              <div class="chart-bar" style="height: 42%"></div>
+              <div class="chart-bar" style="height: 38%"></div>
+              <div class="chart-bar" style="height: 55%"></div>
+              <div class="chart-bar" style="height: 50%"></div>
+              <div class="chart-bar" style="height: 62%"></div>
+              <div class="chart-bar" style="height: 58%"></div>
+              <div class="chart-bar" style="height: 72%"></div>
+              <div class="chart-bar" style="height: 68%"></div>
+              <div class="chart-bar" style="height: 80%"></div>
+              <div class="chart-bar" style="height: 75%"></div>
+              <div class="chart-bar" style="height: 88%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ INSTALL GUIDE ═══ -->
+    <section class="install-section" id="install">
+      <div class="wrap">
+        <div class="section-label reveal">No account setup required</div>
+        <h2 class="section-title reveal">From download<br>to your first set.</h2>
+        <p class="section-desc reveal">Install the Android build directly, open OMEGA, and start shaping your routine. Three steps, zero friction.</p>
+
+        <div class="install-steps">
+          <div class="install-step reveal">
+            <div class="step-num">01</div>
+            <h3>Download the APK</h3>
+            <p>Tap the download button to grab the latest ARM64 release directly from GitHub Releases. Around 19.6 MB — smaller than a single Instagram story.</p>
+          </div>
+          <div class="install-step reveal">
+            <div class="step-num">02</div>
+            <h3>Allow the install</h3>
+            <p>Android may ask you to allow your browser to install apps from this source. This is a standard one-time permission you can revoke later in Settings.</p>
+          </div>
+          <div class="install-step reveal">
+            <div class="step-num">03</div>
+            <h3>Open and start lifting</h3>
+            <p>Create your training split, configure your rest timer, and log your first session. No sign-up, no cloud sync, no onboarding carousel.</p>
+          </div>
+        </div>
+
+        <div class="install-note reveal">
+          <span class="note-icon" aria-hidden="true">⚠</span>
+          <p><strong>About Android's install prompt:</strong> Android shows a warning for apps installed outside Google Play. This is standard behavior for all sideloaded APKs. OMEGA is fully open-source — review the code and release artifacts on <a href="https://github.com/ASSAS-Labs/Omega" style="color: rgba(234,179,8,0.95); text-decoration: underline;" target="_blank" rel="noopener">GitHub</a> before installing.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ FINAL CTA ═══ -->
+    <section class="final-cta">
+      <div class="wrap">
+        <div class="cta-panel reveal">
+          <div>
+            <h2>Own your iron.<br>Own your data.</h2>
+            <p class="cta-desc">Take your training log with you — kept local, private, and ready for the next session.</p>
+          </div>
+          <div class="cta-buttons">
+            <a class="btn btn-primary" href="https://github.com/ASSAS-Labs/Omega/releases" target="_blank" rel="noopener">Download APK <span aria-hidden="true">↗</span></a>
+            <a class="btn btn-ghost" href="https://github.com/ASSAS-Labs/Omega" target="_blank" rel="noopener">Explore GitHub</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ═══ FOOTER ═══ -->
+  <footer class="site-footer">
+    <div class="wrap footer-inner">
+      <a class="footer-brand" href="#top"><span class="omega-sym" aria-hidden="true">Ω</span> OMEGA</a>
+      <div class="footer-links">
+        <a href="https://github.com/ASSAS-Labs/Omega" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/ASSAS-Labs/Omega/releases" target="_blank" rel="noopener">Releases</a>
+        <a href="https://github.com/ASSAS-Labs/Omega/blob/main/LICENSE" target="_blank" rel="noopener">License</a>
+      </div>
+      <a class="back-to-top" href="#top">↑ Back to top</a>
+    </div>
+  </footer>
+
+  <!-- ═══ CDN SCRIPTS ═══ -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+
+  <script>
+  (() => {
+    'use strict';
+
+    /* ═══════════════════════════════════════════════════════════
+       CURSOR GLOW TRACKER
+       ═══════════════════════════════════════════════════════════ */
+    const cursorGlow = document.getElementById('cursorGlow');
+    let mouseX = 0, mouseY = 0, glowX = 0, glowY = 0;
+    document.addEventListener('mousemove', (e) => {
+      mouseX = e.clientX;
+      mouseY = e.clientY;
+    }, { passive: true });
+    function animateCursorGlow() {
+      glowX += (mouseX - glowX) * 0.08;
+      glowY += (mouseY - glowY) * 0.08;
+      cursorGlow.style.left = glowX + 'px';
+      cursorGlow.style.top = glowY + 'px';
+      requestAnimationFrame(animateCursorGlow);
+    }
+    animateCursorGlow();
+
+    /* ═══════════════════════════════════════════════════════════
+       NAVBAR SCROLL STATE
+       ═══════════════════════════════════════════════════════════ */
+    const navBar = document.getElementById('navBar');
+    let ticking = false;
+    window.addEventListener('scroll', () => {
+      if (!ticking) {
+        requestAnimationFrame(() => {
+          navBar.classList.toggle('scrolled', window.scrollY > 60);
+          ticking = false;
+        });
+        ticking = true;
+      }
+    }, { passive: true });
+
+    /* ═══════════════════════════════════════════════════════════
+       THREE.JS — Silver Surfer Liquid Chrome Omega with Cosmic Starlight
+       ═══════════════════════════════════════════════════════════ */
+    const canvas = document.getElementById('hero-canvas');
+    let renderer, scene, camera, omegaGroup;
+    let isWebGLAvailable = true;
+
+    try {
+      renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.35;
+
+      scene = new THREE.Scene();
+      camera = new THREE.PerspectiveCamera(50, canvas.clientWidth / canvas.clientHeight, 0.1, 100);
+      camera.position.set(0, 0, 6.7);
+
+      /* ── Procedural Cosmic Space Environment Map (Mirror Reflections) ── */
+      const envCanvas = document.createElement('canvas');
+      envCanvas.width = 1024;
+      envCanvas.height = 512;
+      const envCtx = envCanvas.getContext('2d');
+
+      function drawEnvMap(starTwinkleOffset = 0) {
+        envCtx.fillStyle = '#000000';
+        envCtx.fillRect(0, 0, 1024, 512);
+
+        // Sweeping horizon specular band (sculpts the liquid chrome curves seen on Silver Surfer)
+        const horizonGrad = envCtx.createLinearGradient(0, 200, 0, 312);
+        horizonGrad.addColorStop(0, 'rgba(0, 0, 0, 0)');
+        horizonGrad.addColorStop(0.44, 'rgba(255, 255, 255, 0.85)');
+        horizonGrad.addColorStop(0.5, 'rgba(255, 255, 255, 1.0)');
+        horizonGrad.addColorStop(0.56, 'rgba(255, 255, 255, 0.85)');
+        horizonGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        envCtx.fillStyle = horizonGrad;
+        envCtx.fillRect(0, 200, 1024, 112);
+
+        // Upper celestial starlight rim band
+        const skyGrad = envCtx.createLinearGradient(0, 0, 0, 160);
+        skyGrad.addColorStop(0, 'rgba(224, 242, 254, 0.6)');
+        skyGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        envCtx.fillStyle = skyGrad;
+        envCtx.fillRect(0, 0, 1024, 160);
+
+        // Scattered starry points reflecting in the liquid mirror
+        const rng = (seed) => {
+          const s = Math.sin(seed) * 10000;
+          return s - Math.floor(s);
+        };
+        for (let i = 0; i < 280; i++) {
+          const sx = rng(i * 12.9898) * 1024;
+          const sy = rng(i * 78.233) * 512;
+          const sr = rng(i * 37.719) * 1.5 + 0.6;
+          const twinkle = 0.5 + 0.5 * Math.sin(starTwinkleOffset + i * 2.5);
+          envCtx.fillStyle = `rgba(255, 255, 255, ${0.4 + 0.6 * twinkle})`;
+          envCtx.beginPath();
+          envCtx.arc(sx, sy, sr, 0, Math.PI * 2);
+          envCtx.fill();
+        }
+      }
+      drawEnvMap(0);
+
+      const envTexture = new THREE.CanvasTexture(envCanvas);
+      envTexture.mapping = THREE.EquirectangularReflectionMapping;
+      scene.environment = envTexture;
+
+      /* ── Authentic Greek Omega Shape Geometry ── */
+      const omegaShape = new THREE.Shape();
+      const Rout = 1.75;        // Outer circle radius
+      const Rin = 1.08;         // Inner circle radius (wall thickness = 0.67)
+      const xFoot = 1.75;       // Outer edge of the foot flange (flush with circle tangent)
+      const xGap = 0.38;        // Central vertical gap half-width between feet
+      const yBot = -1.65;       // Bottom horizontal base of feet
+      const yTop = -1.22;       // Top horizontal shelf of feet
+
+      // Outer circle intersection with top foot shelf
+      const xOutMeet = Math.sqrt(Rout * Rout - yTop * yTop);
+      const thetaOutRight = Math.atan2(yTop, xOutMeet);
+      const thetaOutLeft = Math.PI - thetaOutRight;
+
+      // Inner circle intersection with vertical gap wall
+      const yInMeet = -Math.sqrt(Rin * Rin - xGap * xGap);
+      const angleInRight = Math.atan2(yInMeet, xGap);
+      const thetaInLeft = Math.PI - angleInRight;
+      const thetaInRight = angleInRight;
+
+      // Closed continuous counter-clockwise polygon:
+      omegaShape.moveTo(xFoot, yTop);
+      omegaShape.lineTo(xOutMeet, yTop);
+      omegaShape.absarc(0, 0, Rout, thetaOutRight, thetaOutLeft, false);
+      omegaShape.lineTo(-xFoot, yTop);
+      omegaShape.lineTo(-xFoot, yBot);
+      omegaShape.lineTo(-xGap, yBot);
+      omegaShape.lineTo(-xGap, yInMeet);
+      omegaShape.absarc(0, 0, Rin, thetaInLeft, thetaInRight, true);
+      omegaShape.lineTo(xGap, yBot);
+      omegaShape.lineTo(xFoot, yBot);
+      omegaShape.closePath();
+
+      const extrudeSettings = {
+        steps: 1,
+        depth: 0.40,
+        bevelEnabled: true,
+        bevelThickness: 0.09,
+        bevelSize: 0.05,
+        bevelOffset: 0,
+        bevelSegments: 5,
+        curveSegments: 48
+      };
+
+      const geometry = new THREE.ExtrudeGeometry(omegaShape, extrudeSettings);
+      geometry.center();
+
+      // Silver Surfer Liquid Chrome Metallic Finish
+      const material = new THREE.MeshPhysicalMaterial({
+        color: 0x05070a,           // Deep obsidian metal base (void shadow reflection)
+        metalness: 1.0,            // 100% reflective liquid metal
+        roughness: 0.05,           // Mirror-slick chrome polish
+        clearcoat: 1.0,            // Liquid glass lacquer sheen
+        clearcoatRoughness: 0.03,
+        reflectivity: 1.0,
+        envMapIntensity: 3.0,
+      });
+
+      const omegaMesh = new THREE.Mesh(geometry, material);
+      omegaGroup = new THREE.Group();
+      omegaGroup.add(omegaMesh);
+      scene.add(omegaGroup);
+
+      /* ── 3D Starburst Glints (Twinkling directly on the Omega symbol) ── */
+      const glintCanvas = document.createElement('canvas');
+      glintCanvas.width = 64;
+      glintCanvas.height = 64;
+      const gCtx = glintCanvas.getContext('2d');
+
+      // Core radial bloom
+      const gGrad = gCtx.createRadialGradient(32, 32, 0, 32, 32, 30);
+      gGrad.addColorStop(0, 'rgba(255, 255, 255, 1)');
+      gGrad.addColorStop(0.18, 'rgba(224, 242, 254, 0.9)');
+      gGrad.addColorStop(0.5, 'rgba(147, 197, 253, 0.28)');
+      gGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      gCtx.fillStyle = gGrad;
+      gCtx.fillRect(0, 0, 64, 64);
+
+      // 4-point diamond cross spikes
+      gCtx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+      // Horizontal beam
+      gCtx.beginPath();
+      gCtx.moveTo(0, 32);
+      gCtx.lineTo(32, 30);
+      gCtx.lineTo(64, 32);
+      gCtx.lineTo(32, 34);
+      gCtx.closePath();
+      gCtx.fill();
+      // Vertical beam
+      gCtx.beginPath();
+      gCtx.moveTo(32, 0);
+      gCtx.lineTo(34, 32);
+      gCtx.lineTo(32, 64);
+      gCtx.lineTo(30, 32);
+      gCtx.closePath();
+      gCtx.fill();
+
+      const glintTexture = new THREE.CanvasTexture(glintCanvas);
+
+      // Coordinates along iconic bevels & crests of the Omega
+      const glintConfigs = [
+        { x: 0.0, y: 1.76, z: 0.25, speed: 2.2, phase: 0.0, maxScale: 0.55 },
+        { x: -1.25, y: 1.25, z: 0.25, speed: 1.8, phase: 1.3, maxScale: 0.48 },
+        { x: 1.25, y: 1.25, z: 0.25, speed: 2.6, phase: 2.6, maxScale: 0.52 },
+        { x: -1.72, y: -0.08, z: 0.25, speed: 1.7, phase: 3.8, maxScale: 0.46 },
+        { x: 1.72, y: -0.08, z: 0.25, speed: 2.1, phase: 4.7, maxScale: 0.46 },
+        { x: 0.0, y: 1.07, z: 0.25, speed: 2.8, phase: 0.8, maxScale: 0.42 },
+        { x: -1.70, y: -1.22, z: 0.25, speed: 2.0, phase: 5.2, maxScale: 0.50 },
+        { x: 1.70, y: -1.22, z: 0.25, speed: 2.4, phase: 3.0, maxScale: 0.50 },
+        { x: -0.38, y: -1.58, z: 0.25, speed: 1.9, phase: 2.1, maxScale: 0.38 },
+        { x: 0.38, y: -1.58, z: 0.25, speed: 2.5, phase: 4.1, maxScale: 0.38 }
+      ];
+
+      const glintSprites = [];
+      glintConfigs.forEach(cfg => {
+        const sMat = new THREE.SpriteMaterial({
+          map: glintTexture,
+          blending: THREE.AdditiveBlending,
+          transparent: true,
+          depthWrite: false,
+          opacity: 0.8
+        });
+        const sprite = new THREE.Sprite(sMat);
+        sprite.position.set(cfg.x, cfg.y, cfg.z);
+        sprite.scale.set(cfg.maxScale, cfg.maxScale, 1);
+        sprite.userData = cfg;
+        omegaGroup.add(sprite);
+        glintSprites.push(sprite);
+      });
+
+      /* ── Silver Surfer Cinematic High-Contrast Studio Lighting ── */
+      const ambientLight = new THREE.AmbientLight(0x151820, 0.45);
+      scene.add(ambientLight);
+
+      // Blinding white key directional light casting high-contrast specular highlights
+      const keyLight = new THREE.DirectionalLight(0xffffff, 3.2);
+      keyLight.position.set(3, 5, 5);
+      scene.add(keyLight);
+
+      // Cool fill light to define left-side musculature/bevel
+      const fillLight = new THREE.DirectionalLight(0xcfd8dc, 1.4);
+      fillLight.position.set(-4, 2, 4);
+      scene.add(fillLight);
+
+      // Overhead spotlight for top crown reflection
+      const topSpot = new THREE.SpotLight(0xffffff, 3.0, 16, Math.PI / 4, 0.3);
+      topSpot.position.set(0, 6, 2.5);
+      topSpot.target = omegaMesh;
+      scene.add(topSpot);
+
+      // Subtle celestial starlight rim light
+      const rimStarlight = new THREE.PointLight(0x93c5fd, 2.0, 12);
+      rimStarlight.position.set(3.2, -2, 3);
+      scene.add(rimStarlight);
+
+      // Backlight for clean silhouette separation
+      const backGlow = new THREE.PointLight(0xffffff, 1.6, 10);
+      backGlow.position.set(0, 0, -2.5);
+      scene.add(backGlow);
+
+      /* ── Interactive Rotation ───────────────────────────────── */
+      let targetRotX = 0, targetRotY = 0;
+      let isDragging = false;
+      let prevDragX = 0, prevDragY = 0;
+      let dragRotX = 0, dragRotY = 0;
+
+      canvas.addEventListener('mousemove', (e) => {
+        if (isDragging) return;
+        const rect = canvas.getBoundingClientRect();
+        const nx = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+        const ny = ((e.clientY - rect.top) / rect.height) * 2 - 1;
+        targetRotY = nx * 0.3;
+        targetRotX = -ny * 0.2;
+      }, { passive: true });
+
+      canvas.addEventListener('mousedown', (e) => {
+        isDragging = true;
+        prevDragX = e.clientX;
+        prevDragY = e.clientY;
+        canvas.style.cursor = 'grabbing';
+      });
+      window.addEventListener('mouseup', () => {
+        isDragging = false;
+        canvas.style.cursor = 'grab';
+      });
+      window.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        const dx = e.clientX - prevDragX;
+        const dy = e.clientY - prevDragY;
+        dragRotY += dx * 0.008;
+        dragRotX += dy * 0.005;
+        prevDragX = e.clientX;
+        prevDragY = e.clientY;
+      }, { passive: true });
+
+      // Touch support
+      canvas.addEventListener('touchstart', (e) => {
+        isDragging = true;
+        prevDragX = e.touches[0].clientX;
+        prevDragY = e.touches[0].clientY;
+      }, { passive: true });
+      canvas.addEventListener('touchmove', (e) => {
+        if (!isDragging) return;
+        const dx = e.touches[0].clientX - prevDragX;
+        const dy = e.touches[0].clientY - prevDragY;
+        dragRotY += dx * 0.008;
+        dragRotX += dy * 0.005;
+        prevDragX = e.touches[0].clientX;
+        prevDragY = e.touches[0].clientY;
+      }, { passive: true });
+      canvas.addEventListener('touchend', () => { isDragging = false; }, { passive: true });
+
+      canvas.style.cursor = 'grab';
+
+      /* ── Render Loop ────────────────────────────────────────── */
+      const clock = new THREE.Clock();
+      function animate3D() {
+        requestAnimationFrame(animate3D);
+        const t = clock.getElapsedTime();
+
+        // Breathing float
+        const breathY = Math.sin(t * 0.5) * 0.08;
+        const breathRot = Math.sin(t * 0.3) * 0.04;
+
+        if (!isDragging) {
+          dragRotX *= 0.97;
+          dragRotY *= 0.97;
+        }
+
+        omegaGroup.rotation.x += (targetRotX + dragRotX + breathRot - omegaGroup.rotation.x) * 0.04;
+        omegaGroup.rotation.y += (targetRotY + dragRotY - omegaGroup.rotation.y) * 0.04;
+        omegaGroup.position.y = -0.06 + breathY;
+
+        // Animate twinkling star glints on the Omega symbol
+        glintSprites.forEach(sprite => {
+          const cfg = sprite.userData;
+          const pulse = 0.5 + 0.5 * Math.sin(t * cfg.speed + cfg.phase);
+          const twinkle = Math.pow(pulse, 3.2);
+          sprite.material.opacity = 0.12 + 0.88 * twinkle;
+          const s = cfg.maxScale * (0.55 + 0.45 * twinkle);
+          sprite.scale.set(s, s, 1);
+        });
+
+        // Drift the cosmic reflection map slowly
+        envTexture.offset.x = (t * 0.015) % 1;
+
+        renderer.render(scene, camera);
+      }
+      animate3D();
+
+      /* ── Resize Handler ─────────────────────────────────────── */
+      function onResize() {
+        const w = canvas.clientWidth;
+        const h = canvas.clientHeight;
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+        renderer.setSize(w, h);
+      }
+      window.addEventListener('resize', onResize, { passive: true });
+
+    } catch (e) {
+      isWebGLAvailable = false;
+      console.warn('WebGL not available, falling back to CSS-only hero.');
+      canvas.style.display = 'none';
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       GSAP + SCROLLTRIGGER ANIMATIONS
+       ═══════════════════════════════════════════════════════════ */
+    gsap.registerPlugin(ScrollTrigger);
+
+    // Hero entrance
+    const heroTl = gsap.timeline({ defaults: { ease: 'power3.out' } });
+    heroTl
+      .to('.hero-title', { opacity: 1, y: 0, duration: 1 }, 0.2)
+      .to('.hero-subtitle', { opacity: 1, y: 0, duration: 0.8 }, 0.5)
+      .to('.hero-badge', { opacity: 1, y: 0, duration: 0.8 }, 0.8);
+
+    // Scroll-driven reveal for all .reveal elements
+    const revealEls = document.querySelectorAll('.reveal');
+    revealEls.forEach((el, i) => {
+      gsap.to(el, {
+        scrollTrigger: {
+          trigger: el,
+          start: 'top 88%',
+          once: true,
+        },
+        opacity: 1,
+        y: 0,
+        duration: 0.8,
+        delay: i % 4 * 0.08,
+        ease: 'power3.out',
+        onStart: () => el.classList.add('revealed'),
+      });
+    });
+
+    // Phone mockup 3D tilt on scroll
+    const phoneFrame = document.getElementById('phoneFrame');
+    if (phoneFrame) {
+      gsap.fromTo(phoneFrame, {
+        rotateX: 15,
+        rotateY: -10,
+        scale: 0.9,
+      }, {
+        rotateX: 0,
+        rotateY: 0,
+        scale: 1,
+        ease: 'none',
+        scrollTrigger: {
+          trigger: '#phoneShowcase',
+          start: 'top 80%',
+          end: 'top 30%',
+          scrub: 1.5,
+        }
+      });
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       LIGHTSWIND UI — 3D BEND CAROUSEL ENGINE
+       ═══════════════════════════════════════════════════════════ */
+    const bendContainer = document.getElementById('bendCarousel');
+    const bendCards = Array.from(document.querySelectorAll('.bend-card'));
+    const bendGlares = Array.from(document.querySelectorAll('.bend-card-glare'));
+    // Minimalist interactive carousel (select by clicking, dragging, or mouse wheel)
+
+    const totalBendCards = bendCards.length;
+    let bendItemWidth = 260;
+    const bendGap = -20;
+    let bendStep = bendItemWidth + bendGap;
+    const bendAngle = 38;
+    const bendDepth = 360;
+    const bendDamping = 0.085;
+    const bendMomentumFactor = 120;
+    const bendActiveScale = 1.05;
+    const bendMinOpacity = 0.22;
+    const bendCurveDirection = 'concave'; // concave curves away into screen
+
+    let currentOffset = 0;
+    let targetOffset = 0;
+    let isDraggingBend = false;
+    let isHoveringBend = false;
+    let dragStartCoord = 0;
+    let dragStartOffset = 0;
+    let lastCoord = 0;
+    let lastTime = 0;
+    let dragVelocity = 0;
+    let bendRafId = null;
+    let wheelDebounceTimer = null;
+    let activeBendIndex = 0;
+    let isAutoPlaying = false;
+
+    function updateDimensions() {
+      if (!bendContainer) return;
+      const w = window.innerWidth;
+      bendItemWidth = w < 640 ? 195 : (w < 900 ? 220 : 260);
+      bendStep = bendItemWidth + bendGap;
+    }
+    window.addEventListener('resize', () => {
+      updateDimensions();
+      updateBendTransforms();
+      wakeBendRaf();
+    }, { passive: true });
+    updateDimensions();
+
+    function updateBendTransforms() {
+      if (!bendContainer || totalBendCards === 0) return;
+
+      const containerWidth = bendContainer.clientWidth || 900;
+      const centerOffset = containerWidth / 2;
+      const totalSpan = totalBendCards * bendStep;
+
+      let nearestIdx = 0;
+      let minDistance = Infinity;
+
+      for (let i = 0; i < totalBendCards; i++) {
+        const card = bendCards[i];
+        if (!card) continue;
+
+        let deltaPixels = i * bendStep - currentOffset;
+
+        // Circular wrapping calculation
+        if (totalSpan > 0) {
+          deltaPixels = ((deltaPixels % totalSpan) + totalSpan * 1.5) % totalSpan - totalSpan / 2;
+        }
+
+        const distFromCenter = Math.abs(deltaPixels);
+        if (distFromCenter < minDistance) {
+          minDistance = distFromCenter;
+          nearestIdx = i;
+        }
+
+        // Normalized progress relative to viewport center (-1.6 to 1.6)
+        const viewThreshold = Math.max(1, centerOffset * 0.85);
+        const normalized = Math.max(-1.6, Math.min(1.6, deltaPixels / viewThreshold));
+        const absNorm = Math.abs(normalized);
+
+        // 3D Curves Calculation
+        const curveSign = bendCurveDirection === 'concave' ? 1 : -1;
+        const rotateAngle = -normalized * bendAngle * curveSign;
+        const translateZ = -absNorm * bendDepth;
+
+        // Smooth Opacity & Scale
+        const opacity = Math.max(bendMinOpacity, 1 - Math.pow(absNorm * 0.75, 1.25));
+        const scale = Math.max(0.85, bendActiveScale - absNorm * (bendActiveScale - 0.92));
+        const zIndex = Math.round(100 - absNorm * 50);
+
+        // Dynamic Transform Origin for natural hinge bending
+        let transformOrigin = 'center center';
+        if (normalized > 0.04) transformOrigin = 'left center';
+        else if (normalized < -0.04) transformOrigin = 'right center';
+
+        card.style.transform = `translate3d(calc(-50% + ${deltaPixels}px), -50%, ${translateZ}px) rotateY(${rotateAngle}deg) scale(${scale})`;
+        card.style.transformOrigin = transformOrigin;
+        card.style.opacity = opacity.toFixed(3);
+        card.style.zIndex = zIndex;
+
+        // Grayscale & Brightness Depth Filter
+        const grayPercent = Math.min(100, Math.pow(absNorm, 1.4) * 100);
+        const brightness = Math.max(0.6, 1 - absNorm * 0.35);
+        card.style.filter = `grayscale(${grayPercent.toFixed(1)}%) brightness(${brightness.toFixed(2)})`;
+
+        if (distFromCenter < bendStep * 0.4) {
+          card.classList.add('is-center');
+        } else {
+          card.classList.remove('is-center');
+        }
+
+        // 3D Glass Sheen Glare Effect
+        const glare = bendGlares[i];
+        if (glare) {
+          const glareOpacity = Math.max(0, 0.45 - absNorm * 0.45);
+          const glareAngle = 90 + rotateAngle * 2;
+          glare.style.opacity = glareOpacity.toFixed(3);
+          glare.style.background = `linear-gradient(${glareAngle}deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0.05) 45%, transparent 70%)`;
+        }
+      }
+
+      if (nearestIdx !== activeBendIndex) {
+        activeBendIndex = nearestIdx;
+      }
+    }
+
+    function tickBend() {
+      const diff = targetOffset - currentOffset;
+      if (Math.abs(diff) > 0.05 || isDraggingBend) {
+        currentOffset += diff * bendDamping;
+        updateBendTransforms();
+        bendRafId = requestAnimationFrame(tickBend);
+      } else {
+        currentOffset = targetOffset;
+        updateBendTransforms();
+        bendRafId = null;
+      }
+    }
+
+    function wakeBendRaf() {
+      if (!bendRafId) {
+        bendRafId = requestAnimationFrame(tickBend);
+      }
+    }
+
+    function snapBendToNearest() {
+      if (totalBendCards === 0) return;
+      const targetCard = Math.round(targetOffset / bendStep);
+      targetOffset = targetCard * bendStep;
+      wakeBendRaf();
+    }
+
+    function goToBend(index) {
+      if (totalBendCards === 0) return;
+      const normalizedTarget = Math.max(0, Math.min(totalBendCards - 1, index));
+      const currentVirtual = Math.round(currentOffset / bendStep);
+      const currentMod = ((currentVirtual % totalBendCards) + totalBendCards) % totalBendCards;
+      let diff = normalizedTarget - currentMod;
+      if (diff > totalBendCards / 2) diff -= totalBendCards;
+      if (diff < -totalBendCards / 2) diff += totalBendCards;
+      targetOffset = (currentVirtual + diff) * bendStep;
+      wakeBendRaf();
+    }
+
+    function nextBend() {
+      targetOffset += bendStep;
+      wakeBendRaf();
+    }
+
+    function prevBend() {
+      targetOffset -= bendStep;
+      wakeBendRaf();
+    }
+
+    // Card click: go to card if not center
+    bendCards.forEach((card, idx) => {
+      card.addEventListener('click', () => {
+        if (idx !== activeBendIndex) {
+          goToBend(idx);
+        }
+      });
+    });
+
+    // Drag Interaction (Mouse & Touch)
+    if (bendContainer) {
+      bendContainer.addEventListener('mouseenter', () => { isHoveringBend = true; });
+      bendContainer.addEventListener('mouseleave', () => { isHoveringBend = false; });
+
+      function onBendDragStart(e) {
+        isDraggingBend = true;
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        dragStartCoord = clientX;
+        dragStartOffset = targetOffset;
+        lastCoord = clientX;
+        lastTime = performance.now();
+        dragVelocity = 0;
+        wakeBendRaf();
+      }
+
+      function onBendDragMove(e) {
+        if (!isDraggingBend) return;
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const delta = dragStartCoord - clientX;
+        targetOffset = dragStartOffset + delta;
+
+        const now = performance.now();
+        const dt = now - lastTime;
+        if (dt > 8) {
+          const dCoord = lastCoord - clientX;
+          dragVelocity = dCoord / dt;
+          lastCoord = clientX;
+          lastTime = now;
+        }
+        wakeBendRaf();
+      }
+
+      function onBendDragEnd() {
+        if (!isDraggingBend) return;
+        isDraggingBend = false;
+        const momentum = dragVelocity * bendMomentumFactor;
+        targetOffset += momentum;
+        snapBendToNearest();
+        wakeBendRaf();
+      }
+
+      bendContainer.addEventListener('mousedown', onBendDragStart);
+      window.addEventListener('mousemove', onBendDragMove, { passive: true });
+      window.addEventListener('mouseup', onBendDragEnd);
+
+      bendContainer.addEventListener('touchstart', onBendDragStart, { passive: true });
+      window.addEventListener('touchmove', onBendDragMove, { passive: true });
+      window.addEventListener('touchend', onBendDragEnd);
+
+      // Wheel Interaction
+      bendContainer.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const delta = Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+        const normalizedDelta = Math.sign(delta) * Math.min(Math.abs(delta), 120);
+        targetOffset += normalizedDelta * 1.1;
+        wakeBendRaf();
+
+        if (wheelDebounceTimer) clearTimeout(wheelDebounceTimer);
+        wheelDebounceTimer = setTimeout(() => {
+          snapBendToNearest();
+        }, 180);
+      }, { passive: false });
+
+      // Keyboard Arrow Controls
+      window.addEventListener('keydown', (e) => {
+        const isFocused = document.activeElement === bendContainer || bendContainer.contains(document.activeElement);
+        if (!isFocused && !isHoveringBend) return;
+        if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          prevBend();
+        } else if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          nextBend();
+        }
+      });
+    }
+    // Autoplay disabled: screens only move when user selects or interacts with them
+
+
+    // Initial Render
+    updateBendTransforms();
+    wakeBendRaf();
+  })();
+
+  /* ═══════════════════════════════════════════════════════════
+     TWINKLING STARS BACKGROUND COMPONENT (Deep Space Void)
+     ═══════════════════════════════════════════════════════════ */
+  (function initTwinklingStars() {
+    const starsCanvas = document.getElementById('stars-canvas');
+    if (!starsCanvas) return;
+    const ctx = starsCanvas.getContext('2d');
+    let stars = [];
+    let width = 0;
+    let height = 0;
+    let dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+    function resize() {
+      width = window.innerWidth;
+      height = window.innerHeight;
+      starsCanvas.width = width * dpr;
+      starsCanvas.height = height * dpr;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.scale(dpr, dpr);
+      initStars();
+    }
+
+    function initStars() {
+      const starCount = Math.floor((width * height) / 3600);
+      stars = [];
+      for (let i = 0; i < starCount; i++) {
+        const isBright = Math.random() < 0.09;
+        const isMedium = Math.random() < 0.28;
+        const r = isBright ? (Math.random() * 0.8 + 1.4) : (isMedium ? (Math.random() * 0.5 + 0.9) : (Math.random() * 0.4 + 0.5));
+        stars.push({
+          x: Math.random() * width,
+          y: Math.random() * height,
+          r: r,
+          baseAlpha: Math.random() * 0.25 + 0.1,
+          maxAlpha: Math.random() * 0.4 + 0.6,
+          speed: Math.random() * 0.04 + 0.014,
+          phase: Math.random() * Math.PI * 2,
+          hasSpikes: isBright,
+          hue: Math.random() < 0.25 ? 'ice' : 'white'
+        });
+      }
+    }
+
+    window.addEventListener('resize', resize, { passive: true });
+    resize();
+
+    function drawStars() {
+      ctx.clearRect(0, 0, width, height);
+
+      for (let i = 0; i < stars.length; i++) {
+        const star = stars[i];
+        star.phase += star.speed;
+        const sinVal = Math.sin(star.phase);
+        const factor = Math.pow(0.5 + 0.5 * sinVal, 1.8);
+        const alpha = star.baseAlpha + (star.maxAlpha - star.baseAlpha) * factor;
+
+        ctx.fillStyle = star.hue === 'ice' 
+          ? `rgba(224, 242, 254, ${alpha})` 
+          : `rgba(255, 255, 255, ${alpha})`;
+
+        ctx.beginPath();
+        ctx.arc(star.x, star.y, star.r, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 4-point micro cross-starburst flare on peak twinkle for bright stars
+        if (star.hasSpikes && factor > 0.80) {
+          const spikeLen = star.r * (3.2 + factor * 2.5);
+          const spikeAlpha = (factor - 0.80) / 0.20 * 0.75;
+          ctx.strokeStyle = `rgba(255, 255, 255, ${spikeAlpha})`;
+          ctx.lineWidth = 0.8;
+          ctx.beginPath();
+          ctx.moveTo(star.x - spikeLen, star.y);
+          ctx.lineTo(star.x + spikeLen, star.y);
+          ctx.moveTo(star.x, star.y - spikeLen);
+          ctx.lineTo(star.x, star.y + spikeLen);
+          ctx.stroke();
+        }
+      }
+      requestAnimationFrame(drawStars);
+    }
+    requestAnimationFrame(drawStars);
+  })();
+  </script>
+</body>
+</html>

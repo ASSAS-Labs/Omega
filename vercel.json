@@ -1,0 +1,8 @@
+{
+  "cleanUrls": true,
+  "rewrites": [
+    { "source": "/", "destination": "/omega-site/index.html" },
+    { "source": "/assets/(.*)", "destination": "/omega-site/assets/$1" },
+    { "source": "/(.*)", "destination": "/omega-site/$1" }
+  ]
+}

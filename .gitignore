@@ -27,6 +27,7 @@ coverage/
 
 # Agent / tooling scratch (session attachments, task locks/events)
 .reasonix/
+.manus/
 
 # OS
 .DS_Store
