@@ -212,8 +212,7 @@
       z-index: 1;
       width: 100%;
       height: 100%;
-      cursor: grab;
-      touch-action: pan-y;
+      pointer-events: none;
     }
     .hero-content {
       position: relative;
@@ -1728,157 +1727,24 @@
       backGlow.position.set(0, 0, -2.5);
       scene.add(backGlow);
 
-      /* ── Interactive 3D Physics (Fluid Momentum & Shortest-Arc Return) ── */
-      let rotY = 0;       // Continuous azimuth angle in radians
-      let rotX = 0;       // Continuous elevation tilt in radians
-      let velY = 0;       // Angular velocity Y
-      let velX = 0;       // Angular velocity X
-      let isDragging = false;
-      let lastCoordX = 0, lastCoordY = 0;
-      let lastTime = 0;
-      let hoverTiltX = 0, hoverTiltY = 0;
-
-      // Touch gesture classification to preserve natural vertical page scrolling on mobile
-      let touchStartX = 0, touchStartY = 0;
-      let gestureChecked = false;
-      let isVerticalScroll = false;
-
-      // Mouse hover parallax tilt (when idle)
-      canvas.addEventListener('mousemove', (e) => {
-        if (isDragging) return;
-        const rect = canvas.getBoundingClientRect();
-        const nx = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-        const ny = ((e.clientY - rect.top) / rect.height) * 2 - 1;
-        hoverTiltY = nx * 0.22;
-        hoverTiltX = -ny * 0.15;
-      }, { passive: true });
-
-      canvas.addEventListener('mouseleave', () => {
-        if (!isDragging) {
-          hoverTiltY = 0;
-          hoverTiltX = 0;
-        }
-      });
-
-      // Mouse Drag handlers
-      canvas.addEventListener('mousedown', (e) => {
-        isDragging = true;
-        lastCoordX = e.clientX;
-        lastCoordY = e.clientY;
-        lastTime = performance.now();
-        velY = 0;
-        velX = 0;
-        canvas.style.cursor = 'grabbing';
-        document.body.style.userSelect = 'none';
-      });
+      /* ── Interactive 3D Cursor Parallax & Fluid Orbit Tracking ── */
+      let currentTiltX = 0;
+      let currentTiltY = 0;
+      let targetTiltX = 0;
+      let targetTiltY = 0;
 
       window.addEventListener('mousemove', (e) => {
-        if (!isDragging) return;
-        const now = performance.now();
-        const dt = Math.max(now - lastTime, 8);
-        const dx = e.clientX - lastCoordX;
-        const dy = e.clientY - lastCoordY;
-
-        const sensitivityY = 0.0075;
-        const sensitivityX = 0.0045;
-        rotY += dx * sensitivityY;
-        rotX = Math.max(-0.45, Math.min(0.45, rotX - dy * sensitivityX));
-
-        const frameDt = dt / 16.67;
-        const instVelY = (dx * sensitivityY) / frameDt;
-        const instVelX = (-dy * sensitivityX) / frameDt;
-        velY = velY * 0.35 + instVelY * 0.65;
-        velX = velX * 0.35 + instVelX * 0.65;
-
-        lastCoordX = e.clientX;
-        lastCoordY = e.clientY;
-        lastTime = now;
+        // Normalized cursor offset from center of viewport (-1 to +1)
+        const nx = (e.clientX / window.innerWidth) * 2 - 1;
+        const ny = (e.clientY / window.innerHeight) * 2 - 1;
+        targetTiltY = nx * 0.35;
+        targetTiltX = -ny * 0.22;
       }, { passive: true });
 
-      window.addEventListener('mouseup', () => {
-        if (!isDragging) return;
-        isDragging = false;
-        canvas.style.cursor = 'grab';
-        document.body.style.userSelect = '';
-        velY = Math.max(-0.45, Math.min(0.45, velY));
-        velX = Math.max(-0.25, Math.min(0.25, velX));
+      document.addEventListener('mouseleave', () => {
+        targetTiltX = 0;
+        targetTiltY = 0;
       });
-
-      // Touch Drag handlers with vertical scroll guard
-      canvas.addEventListener('touchstart', (e) => {
-        if (e.touches.length !== 1) return;
-        isDragging = true;
-        gestureChecked = false;
-        isVerticalScroll = false;
-        const touch = e.touches[0];
-        touchStartX = touch.clientX;
-        touchStartY = touch.clientY;
-        lastCoordX = touch.clientX;
-        lastCoordY = touch.clientY;
-        lastTime = performance.now();
-        velY = 0;
-        velX = 0;
-      }, { passive: true });
-
-      window.addEventListener('touchmove', (e) => {
-        if (!isDragging || e.touches.length !== 1) return;
-        const touch = e.touches[0];
-        const clientX = touch.clientX;
-        const clientY = touch.clientY;
-
-        if (!gestureChecked) {
-          const tdx = Math.abs(clientX - touchStartX);
-          const tdy = Math.abs(clientY - touchStartY);
-          if (tdx > 7 || tdy > 7) {
-            gestureChecked = true;
-            if (tdy > tdx * 1.3) {
-              // User is scrolling the page vertically! Cancel 3D drag
-              isVerticalScroll = true;
-              isDragging = false;
-              return;
-            }
-          } else {
-            return;
-          }
-        }
-        if (isVerticalScroll) return;
-
-        const now = performance.now();
-        const dt = Math.max(now - lastTime, 8);
-        const dx = clientX - lastCoordX;
-        const dy = clientY - lastCoordY;
-
-        const sensitivityY = 0.009;
-        const sensitivityX = 0.0055;
-        rotY += dx * sensitivityY;
-        rotX = Math.max(-0.45, Math.min(0.45, rotX - dy * sensitivityX));
-
-        const frameDt = dt / 16.67;
-        const instVelY = (dx * sensitivityY) / frameDt;
-        const instVelX = (-dy * sensitivityX) / frameDt;
-        velY = velY * 0.35 + instVelY * 0.65;
-        velX = velX * 0.35 + instVelX * 0.65;
-
-        lastCoordX = clientX;
-        lastCoordY = clientY;
-        lastTime = now;
-      }, { passive: true });
-
-      function endTouchDrag() {
-        if (!isDragging && !isVerticalScroll) return;
-        if (isDragging) {
-          isDragging = false;
-          velY = Math.max(-0.40, Math.min(0.40, velY));
-          velX = Math.max(-0.20, Math.min(0.20, velX));
-        }
-        isVerticalScroll = false;
-        gestureChecked = false;
-      }
-
-      window.addEventListener('touchend', endTouchDrag, { passive: true });
-      window.addEventListener('touchcancel', endTouchDrag, { passive: true });
-
-      canvas.style.cursor = 'grab';
 
       /* ── Render Loop with Off-Screen Pause Optimization ──────── */
       const clock = new THREE.Clock();
@@ -1893,38 +1759,16 @@
         heroRafId = requestAnimationFrame(animate3D);
         const t = clock.getElapsedTime();
 
-        // Breathing float
+        // Organic cosmic breathing float
         const breathY = Math.sin(t * 0.5) * 0.08;
-        const breathRot = Math.sin(t * 0.3) * 0.04;
+        const breathRot = Math.sin(t * 0.3) * 0.035;
 
-        // ── Physics Simulation ──
-        if (!isDragging) {
-          // Find the nearest forward-facing orientation (multiple of 2π) via shortest arc
-          const TWO_PI = Math.PI * 2;
-          const nearestFrontY = Math.round(rotY / TWO_PI) * TWO_PI;
-          const targetY = nearestFrontY + hoverTiltY;
-          const targetX = hoverTiltX;
+        // Smooth liquid-metal spring dampening towards cursor
+        currentTiltX += (targetTiltX - currentTiltX) * 0.055;
+        currentTiltY += (targetTiltY - currentTiltY) * 0.055;
 
-          const distY = targetY - rotY;
-          const distX = targetX - rotX;
-
-          // Adaptive spring: allows smooth inertial gliding when flicked,
-          // then magnetically locks into the nearest forward face via the shortest path
-          const speed = Math.abs(velY);
-          const springK_Y = speed > 0.08 ? 0.016 : 0.046;
-          const dampingY = speed > 0.08 ? 0.94 : 0.86;
-
-          velY += distY * springK_Y;
-          velY *= dampingY;
-          rotY += velY;
-
-          velX += distX * 0.055;
-          velX *= 0.85;
-          rotX += velX;
-        }
-
-        omegaGroup.rotation.y = rotY;
-        omegaGroup.rotation.x = rotX + breathRot;
+        omegaGroup.rotation.y = currentTiltY;
+        omegaGroup.rotation.x = currentTiltX + breathRot;
         omegaGroup.position.y = -0.06 + breathY;
 
         // Animate twinkling star glints on the Omega symbol
