@@ -90,6 +90,10 @@
     @media (hover: hover) {
       .cursor-glow { opacity: 1; }
     }
+    @media (max-width: 768px), (pointer: coarse) {
+      .noise-overlay { display: none !important; }
+      .cursor-glow { display: none !important; }
+    }
 
     /* ═══════════════════════════════════════════════════════════════
        NAVIGATION
@@ -602,17 +606,69 @@
       transition: opacity 0.15s;
       mix-blend-mode: overlay;
     }
+    .bend-controls {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      margin-top: 24px;
+    }
+    .bend-ctrl-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border: 1px solid var(--surface-border);
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--soft);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      line-height: 1;
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s, color 0.2s, transform 0.2s;
+      user-select: none;
+    }
+    .bend-ctrl-btn:hover {
+      background: rgba(59, 130, 246, 0.15);
+      border-color: rgba(59, 130, 246, 0.4);
+      color: #fff;
+      transform: scale(1.05);
+    }
+    .bend-ctrl-btn:active {
+      transform: scale(0.95);
+    }
+    .bend-dots {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .bend-dot {
+      width: 7px;
+      height: 7px;
+      padding: 0;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.22);
+      border: none;
+      transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1), background 0.3s, box-shadow 0.3s;
+      cursor: pointer;
+    }
+    .bend-dot.active {
+      width: 24px;
+      background: var(--accent-blue-bright);
+      box-shadow: 0 0 10px rgba(59, 130, 246, 0.6);
+    }
     @media (max-width: 900px) {
       .bend-carousel-wrapper { height: 580px; }
       .bend-card { width: 220px; height: 490px; }
     }
     @media (max-width: 640px) {
-      .hero-badge { font-size: 9.5px; padding: 8px 14px; max-width: 100%; text-align: center; line-height: 1.5; flex-wrap: wrap; justify-content: center; }
-      .bend-carousel-wrapper { height: 520px; }
-      .bend-card { width: 195px; height: 434px; border-radius: 18px; }
+      .bend-carousel-wrapper { height: 480px; }
+      .bend-card { width: 190px; height: 424px; border-radius: 18px; }
       .bend-card-body { padding: 12px 14px; }
-      .bend-card-title { font-size: 14px; }
+      .bend-card-title { font-size: 13.5px; }
       .bend-card-desc { display: none; }
+      .bend-ctrl-btn { width: 36px; height: 36px; font-size: 18px; }
     }
 
     /* ═══════════════════════════════════════════════════════════════
@@ -966,20 +1022,101 @@
       .cta-panel { flex-direction: column; align-items: flex-start; padding: 32px; }
       .cta-buttons { width: 100%; }
       .cta-buttons .btn { flex: 1; }
-      .phone-showcase { width: 260px; }
     }
     @media (max-width: 640px) {
-      .wrap { width: min(100% - 32px, var(--max)); }
-      .nav-bar { height: 56px; padding: 0 16px; }
-      .nav-cta-btn { padding: 8px 14px; font-size: 10px; }
-      .hero { padding: 120px 16px 50px; min-height: auto; }
-      .hero-title { font-size: clamp(42px, 12vw, 66px); }
-      .hero-ctas { gap: 10px; }
-      .btn { height: 50px; padding: 0 20px; font-size: 12px; }
-      .phone-showcase { width: 220px; }
-      .bento-card { padding: 24px; }
-      .install-step { padding: 24px; }
-      .footer-inner { flex-wrap: wrap; }
+      .wrap { width: min(100% - 24px, var(--max)); }
+      .site-nav { top: 12px; width: calc(100% - 20px); }
+      .nav-bar { height: 52px; padding: 0 14px; }
+      .nav-brand { font-size: 12px; gap: 8px; }
+      .nav-omega { font-size: 22px; }
+      .nav-gh { width: 34px; height: 34px; }
+      .nav-cta-btn { padding: 7px 12px; font-size: 10px; }
+
+      .hero {
+        min-height: 100svh;
+        min-height: 100dvh;
+        padding: 82px 16px 24px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        align-items: center;
+        position: relative;
+        box-sizing: border-box;
+      }
+      .hero-content {
+        margin: auto 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        width: 100%;
+        max-width: 340px;
+      }
+      .hero-title {
+        font-size: clamp(24px, 7.2vw, 34px);
+        line-height: 1.15;
+        letter-spacing: -0.035em;
+        margin: 0;
+      }
+      .hero-subtitle {
+        font-size: 13px;
+        line-height: 1.55;
+        max-width: 310px;
+        margin-top: 14px;
+      }
+      .hero-badge-wrap {
+        position: relative;
+        bottom: auto;
+        left: auto;
+        right: auto;
+        margin-top: 24px;
+        margin-bottom: 4px;
+        width: 100%;
+      }
+      .hero-badge {
+        font-size: 8px;
+        padding: 6px 14px;
+        letter-spacing: 0.04em;
+        line-height: 1.45;
+        text-align: center;
+        max-width: 100%;
+        white-space: normal;
+        justify-content: center;
+      }
+
+      .bento-section, .install-section, .mockup-section {
+        padding: 64px 0;
+      }
+      .section-title {
+        font-size: clamp(28px, 7.8vw, 38px);
+      }
+      .section-desc {
+        font-size: 13.5px;
+        margin-bottom: 28px;
+      }
+      .bento-card { padding: 22px; }
+      .install-step { padding: 22px; }
+
+      .cta-panel {
+        padding: 28px 20px;
+        border-radius: 20px;
+      }
+      .cta-buttons {
+        flex-direction: column;
+        width: 100%;
+        gap: 10px;
+      }
+      .cta-buttons .btn {
+        width: 100%;
+        height: 50px;
+      }
+
+      .footer-inner {
+        flex-direction: column;
+        gap: 14px;
+        text-align: center;
+      }
       .specs-strip { gap: 6px; }
       .spec-badge { padding: 5px 10px; font-size: 9px; }
     }
@@ -1177,6 +1314,12 @@
               </div>
             </div>
           </div>
+          <!-- ── CAROUSEL CONTROLS & INDICATORS ── -->
+          <div class="bend-controls" aria-label="Screenshot Navigation">
+            <button class="bend-ctrl-btn" id="bendPrev" aria-label="Previous screenshot">‹</button>
+            <div class="bend-dots" id="bendDots" role="tablist" aria-label="Screenshots pagination"></div>
+            <button class="bend-ctrl-btn" id="bendNext" aria-label="Next screenshot">›</button>
+          </div>
         </div>
       </div>
     </section>
@@ -1319,22 +1462,25 @@
     'use strict';
 
     /* ═══════════════════════════════════════════════════════════
-       CURSOR GLOW TRACKER
+       CURSOR GLOW TRACKER (Desktop / Fine-pointer only)
        ═══════════════════════════════════════════════════════════ */
     const cursorGlow = document.getElementById('cursorGlow');
-    let mouseX = 0, mouseY = 0, glowX = 0, glowY = 0;
-    document.addEventListener('mousemove', (e) => {
-      mouseX = e.clientX;
-      mouseY = e.clientY;
-    }, { passive: true });
-    function animateCursorGlow() {
-      glowX += (mouseX - glowX) * 0.08;
-      glowY += (mouseY - glowY) * 0.08;
-      cursorGlow.style.left = glowX + 'px';
-      cursorGlow.style.top = glowY + 'px';
-      requestAnimationFrame(animateCursorGlow);
+    const hasFinePointer = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+    if (cursorGlow && hasFinePointer) {
+      let mouseX = 0, mouseY = 0, glowX = 0, glowY = 0;
+      document.addEventListener('mousemove', (e) => {
+        mouseX = e.clientX;
+        mouseY = e.clientY;
+      }, { passive: true });
+      function animateCursorGlow() {
+        glowX += (mouseX - glowX) * 0.08;
+        glowY += (mouseY - glowY) * 0.08;
+        cursorGlow.style.left = glowX + 'px';
+        cursorGlow.style.top = glowY + 'px';
+        requestAnimationFrame(animateCursorGlow);
+      }
+      animateCursorGlow();
     }
-    animateCursorGlow();
 
     /* ═══════════════════════════════════════════════════════════
        NAVBAR SCROLL STATE
@@ -1359,8 +1505,8 @@
     let isWebGLAvailable = true;
 
     try {
-      renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      const isMobileDevice = window.innerWidth < 768 || ('ontouchstart' in window);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobileDevice ? 1.5 : 2));
       renderer.setSize(canvas.clientWidth, canvas.clientHeight);
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure = 1.35;
@@ -1632,10 +1778,17 @@
 
       canvas.style.cursor = 'grab';
 
-      /* ── Render Loop ────────────────────────────────────────── */
+      /* ── Render Loop with Off-Screen Pause Optimization ──────── */
       const clock = new THREE.Clock();
+      let isHeroVisible = true;
+      let heroRafId = null;
+
       function animate3D() {
-        requestAnimationFrame(animate3D);
+        if (!isHeroVisible) {
+          heroRafId = null;
+          return;
+        }
+        heroRafId = requestAnimationFrame(animate3D);
         const t = clock.getElapsedTime();
 
         // Breathing float
@@ -1666,17 +1819,41 @@
 
         renderer.render(scene, camera);
       }
-      animate3D();
 
-      /* ── Resize Handler ─────────────────────────────────────── */
+      const heroEl = document.querySelector('.hero');
+      if (typeof IntersectionObserver !== 'undefined' && heroEl) {
+        const heroObserver = new IntersectionObserver((entries) => {
+          entries.forEach(entry => {
+            const wasVisible = isHeroVisible;
+            isHeroVisible = entry.isIntersecting;
+            if (isHeroVisible && !wasVisible && !heroRafId) {
+              clock.start();
+              heroRafId = requestAnimationFrame(animate3D);
+            }
+          });
+        }, { threshold: 0.02 });
+        heroObserver.observe(heroEl);
+      }
+      heroRafId = requestAnimationFrame(animate3D);
+
+      /* ── Viewport-Aware Camera & Resize Handler ──────────────── */
       function onResize() {
         const w = canvas.clientWidth;
         const h = canvas.clientHeight;
-        camera.aspect = w / h;
+        if (!w || !h) return;
+        const aspect = w / h;
+        camera.aspect = aspect;
+        if (aspect < 1.0) {
+          // Mobile portrait: scale camera gently so Omega emblem stays prominent without clipping edges
+          camera.position.z = Math.min(8.2, Math.max(6.7, 3.8 / Math.max(aspect, 0.45)));
+        } else {
+          camera.position.z = 6.7;
+        }
         camera.updateProjectionMatrix();
         renderer.setSize(w, h);
       }
       window.addEventListener('resize', onResize, { passive: true });
+      onResize();
 
     } catch (e) {
       isWebGLAvailable = false;
@@ -1769,11 +1946,16 @@
     let activeBendIndex = 0;
     let isAutoPlaying = false;
 
+    let currentBendAngle = bendAngle;
+    let currentBendDepth = bendDepth;
+
     function updateDimensions() {
       if (!bendContainer) return;
       const w = window.innerWidth;
-      bendItemWidth = w < 640 ? 195 : (w < 900 ? 220 : 260);
-      bendStep = bendItemWidth + bendGap;
+      bendItemWidth = w < 640 ? 190 : (w < 900 ? 220 : 260);
+      bendStep = bendItemWidth + (w < 640 ? -12 : bendGap);
+      currentBendAngle = w < 640 ? 22 : 38;
+      currentBendDepth = w < 640 ? 160 : 360;
     }
     window.addEventListener('resize', () => {
       updateDimensions();
@@ -1816,8 +1998,8 @@
 
         // 3D Curves Calculation
         const curveSign = bendCurveDirection === 'concave' ? 1 : -1;
-        const rotateAngle = -normalized * bendAngle * curveSign;
-        const translateZ = -absNorm * bendDepth;
+        const rotateAngle = -normalized * currentBendAngle * curveSign;
+        const translateZ = -absNorm * currentBendDepth;
 
         // Smooth Opacity & Scale
         const opacity = Math.max(bendMinOpacity, 1 - Math.pow(absNorm * 0.75, 1.25));
@@ -1834,10 +2016,14 @@
         card.style.opacity = opacity.toFixed(3);
         card.style.zIndex = zIndex;
 
-        // Grayscale & Brightness Depth Filter
-        const grayPercent = Math.min(100, Math.pow(absNorm, 1.4) * 100);
-        const brightness = Math.max(0.6, 1 - absNorm * 0.35);
-        card.style.filter = `grayscale(${grayPercent.toFixed(1)}%) brightness(${brightness.toFixed(2)})`;
+        // Grayscale & Brightness Depth Filter (desktop only to prevent mobile GPU compositor stutter)
+        if (window.innerWidth > 640) {
+          const grayPercent = Math.min(100, Math.pow(absNorm, 1.4) * 100);
+          const brightness = Math.max(0.6, 1 - absNorm * 0.35);
+          card.style.filter = `grayscale(${grayPercent.toFixed(1)}%) brightness(${brightness.toFixed(2)})`;
+        } else {
+          card.style.filter = '';
+        }
 
         if (distFromCenter < bendStep * 0.4) {
           card.classList.add('is-center');
@@ -1857,6 +2043,7 @@
 
       if (nearestIdx !== activeBendIndex) {
         activeBendIndex = nearestIdx;
+        updateActiveDot(nearestIdx);
       }
     }
 
@@ -1917,25 +2104,79 @@
       });
     });
 
-    // Drag Interaction (Mouse & Touch)
+    // Carousel Navigation Dots and Arrow Buttons
+    const dotsContainer = document.getElementById('bendDots');
+    const btnPrev = document.getElementById('bendPrev');
+    const btnNext = document.getElementById('bendNext');
+
+    if (dotsContainer) {
+      dotsContainer.innerHTML = '';
+      for (let i = 0; i < totalBendCards; i++) {
+        const dot = document.createElement('button');
+        dot.className = `bend-dot ${i === 0 ? 'active' : ''}`;
+        dot.setAttribute('aria-label', `Go to screen ${i + 1}`);
+        dot.addEventListener('click', () => goToBend(i));
+        dotsContainer.appendChild(dot);
+      }
+    }
+
+    function updateActiveDot(index) {
+      if (!dotsContainer) return;
+      const dots = dotsContainer.children;
+      for (let i = 0; i < dots.length; i++) {
+        dots[i].classList.toggle('active', i === index);
+      }
+    }
+
+    if (btnPrev) btnPrev.addEventListener('click', () => prevBend());
+    if (btnNext) btnNext.addEventListener('click', () => nextBend());
+
+    // Drag Interaction (Mouse & Touch with gesture direction guard)
     if (bendContainer) {
       bendContainer.addEventListener('mouseenter', () => { isHoveringBend = true; });
       bendContainer.addEventListener('mouseleave', () => { isHoveringBend = false; });
 
+      let touchStartY = 0;
+      let isVerticalScroll = false;
+      let gestureChecked = false;
+
       function onBendDragStart(e) {
         isDraggingBend = true;
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
         dragStartCoord = clientX;
+        touchStartY = clientY;
         dragStartOffset = targetOffset;
         lastCoord = clientX;
         lastTime = performance.now();
         dragVelocity = 0;
+        isVerticalScroll = false;
+        gestureChecked = false;
         wakeBendRaf();
       }
 
       function onBendDragMove(e) {
         if (!isDraggingBend) return;
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+        if (e.touches && !gestureChecked) {
+          const dx = Math.abs(clientX - dragStartCoord);
+          const dy = Math.abs(clientY - touchStartY);
+          if (dx > 7 || dy > 7) {
+            gestureChecked = true;
+            if (dy > dx) {
+              // User is scrolling the page vertically! Cancel carousel drag cleanly.
+              isVerticalScroll = true;
+              isDraggingBend = false;
+              return;
+            }
+          } else {
+            return;
+          }
+        }
+        if (isVerticalScroll) return;
+
         const delta = dragStartCoord - clientX;
         targetOffset = dragStartOffset + delta;
 
@@ -1951,8 +2192,9 @@
       }
 
       function onBendDragEnd() {
-        if (!isDraggingBend) return;
+        if (!isDraggingBend && !isVerticalScroll) return;
         isDraggingBend = false;
+        if (isVerticalScroll) return;
         const momentum = dragVelocity * bendMomentumFactor;
         targetOffset += momentum;
         snapBendToNearest();
@@ -1994,13 +2236,12 @@
         }
       });
     }
-    // Autoplay disabled: screens only move when user selects or interacts with them
-
 
     // Initial Render
     updateBendTransforms();
     wakeBendRaf();
   })();
+
 
   /* ═══════════════════════════════════════════════════════════
      TWINKLING STARS BACKGROUND COMPONENT (Deep Space Void)
@@ -2012,11 +2253,14 @@
     let stars = [];
     let width = 0;
     let height = 0;
-    let dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const isMobile = window.innerWidth < 768;
+    let dpr = Math.min(window.devicePixelRatio || 1, isMobile ? 1 : 2);
+    let isStarsActive = true;
 
     function resize() {
       width = window.innerWidth;
       height = window.innerHeight;
+      dpr = Math.min(window.devicePixelRatio || 1, (window.innerWidth < 768) ? 1 : 2);
       starsCanvas.width = width * dpr;
       starsCanvas.height = height * dpr;
       ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -2025,7 +2269,9 @@
     }
 
     function initStars() {
-      const starCount = Math.floor((width * height) / 3600);
+      const isMob = window.innerWidth < 768;
+      const divisor = isMob ? 8000 : 3600;
+      const starCount = Math.floor((width * height) / divisor);
       stars = [];
       for (let i = 0; i < starCount; i++) {
         const isBright = Math.random() < 0.09;
@@ -2039,16 +2285,22 @@
           maxAlpha: Math.random() * 0.4 + 0.6,
           speed: Math.random() * 0.04 + 0.014,
           phase: Math.random() * Math.PI * 2,
-          hasSpikes: isBright,
+          hasSpikes: isBright && !isMob,
           hue: Math.random() < 0.25 ? 'ice' : 'white'
         });
       }
     }
 
+    document.addEventListener('visibilitychange', () => {
+      isStarsActive = !document.hidden;
+      if (isStarsActive) requestAnimationFrame(drawStars);
+    });
+
     window.addEventListener('resize', resize, { passive: true });
     resize();
 
     function drawStars() {
+      if (!isStarsActive) return;
       ctx.clearRect(0, 0, width, height);
 
       for (let i = 0; i < stars.length; i++) {
