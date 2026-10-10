@@ -674,23 +674,35 @@
     }
 
     /* ═══════════════════════════════════════════════════════════════
-       BENTO GRID — Features
+       BENTO GRID — Engineered Features (Asymmetric Tactical Bento)
        ═══════════════════════════════════════════════════════════════ */
     .bento-section {
-      padding: 120px 0;
+      padding: 130px 0;
       position: relative;
+    }
+    .bento-section::before {
+      content: '';
+      position: absolute;
+      top: 20%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 800px;
+      height: 400px;
+      background: radial-gradient(ellipse at center, rgba(59, 130, 246, 0.06) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
     }
     .bento-section .section-label {
       text-align: center;
       color: var(--accent-blue-bright);
-      font: 600 10px/1 var(--mono);
-      letter-spacing: 0.15em;
+      font: 600 11px/1 var(--mono);
+      letter-spacing: 0.18em;
       text-transform: uppercase;
       margin-bottom: 16px;
     }
     .bento-section .section-title {
       text-align: center;
-      font-size: clamp(32px, 5vw, 52px);
+      font-size: clamp(34px, 5.2vw, 54px);
       font-weight: 800;
       letter-spacing: -0.04em;
       line-height: 1.05;
@@ -699,124 +711,739 @@
     .bento-section .section-desc {
       text-align: center;
       color: var(--muted);
-      font-size: 15px;
-      max-width: 520px;
-      margin: 0 auto 50px;
+      font-size: 15.5px;
+      max-width: 540px;
+      margin: 0 auto 56px;
+      line-height: 1.65;
     }
+
+    /* ── Asymmetric Bento Grid ────────────────────────────────── */
     .bento-grid {
       display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 16px;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 20px;
+      position: relative;
+      z-index: 1;
     }
+
+    .bento-card-wide-left { grid-column: span 7; }
+    .bento-card-narrow-right { grid-column: span 5; }
+    .bento-card-narrow-left { grid-column: span 5; }
+    .bento-card-wide-right { grid-column: span 7; }
+
     .bento-card {
       position: relative;
-      padding: 32px;
-      border: 1px solid var(--surface-border);
-      border-radius: 20px;
-      background: var(--surface);
-      backdrop-filter: blur(16px);
+      padding: 34px 34px 30px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 24px;
+      background: linear-gradient(165deg, rgba(18, 19, 25, 0.85) 0%, rgba(10, 11, 14, 0.92) 100%);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.7), inset 0 1px 0 0 rgba(255, 255, 255, 0.09);
       overflow: hidden;
-      transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.3s;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.35s ease, box-shadow 0.35s ease;
     }
     .bento-card:hover {
       transform: translateY(-4px);
-      border-color: rgba(59, 130, 246, 0.3);
+      border-color: rgba(59, 130, 246, 0.35);
+      box-shadow: 0 30px 60px -15px rgba(0, 0, 0, 0.85), 0 0 30px -5px rgba(59, 130, 246, 0.15), inset 0 1px 0 0 rgba(255, 255, 255, 0.18);
     }
+
+    /* ── Ambient Radial Shimmers ──────────────────────────────── */
     .bento-card::before {
       content: '';
       position: absolute;
-      width: 200px;
-      height: 200px;
-      border-radius: 50%;
-      filter: blur(50px);
-      opacity: 0;
-      transition: opacity 0.5s;
+      inset: 0;
+      background: radial-gradient(circle at top right, rgba(59, 130, 246, 0.08) 0%, transparent 60%);
+      pointer-events: none;
+      opacity: 0.6;
+      transition: opacity 0.4s ease;
     }
     .bento-card:hover::before { opacity: 1; }
-    .bento-card:nth-child(1)::before { background: rgba(59, 130, 246, 0.14); top: -80px; right: -60px; }
-    .bento-card:nth-child(2)::before { background: rgba(6, 182, 212, 0.12); top: -80px; left: -60px; }
-    .bento-card:nth-child(3)::before { background: rgba(59, 130, 246, 0.14); bottom: -80px; right: -60px; }
-    .bento-card:nth-child(4)::before { background: rgba(56, 189, 248, 0.12); bottom: -80px; left: -60px; }
-    .bento-icon {
-      display: grid;
-      place-items: center;
-      width: 44px;
-      height: 44px;
-      border-radius: 12px;
-      font-size: 20px;
-      background: rgba(59, 130, 246, 0.1);
-      border: 1px solid rgba(59, 130, 246, 0.2);
-      margin-bottom: 20px;
+
+    /* ── Background Screenshot Peek Overlay ───────────────────── */
+    .bento-screen-peek {
+      position: absolute;
+      pointer-events: none;
+      opacity: 0.18;
+      transition: opacity 0.4s ease, transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+      filter: contrast(1.1) brightness(0.9);
+      z-index: 0;
     }
-    .bento-card h3 {
-      font-size: 18px;
-      font-weight: 700;
-      letter-spacing: -0.02em;
-      margin-bottom: 10px;
+    .bento-card:hover .bento-screen-peek {
+      opacity: 0.32;
+      transform: scale(1.02);
     }
-    .bento-card .card-subtitle {
-      font: 500 10px/1 var(--mono);
-      color: #60a5fa;
-      letter-spacing: 0.05em;
-      margin-bottom: 12px;
+    .peek-settings {
+      right: -30px;
+      top: -20px;
+      width: 280px;
+      mask-image: radial-gradient(circle at 75% 25%, black 40%, transparent 80%);
+      -webkit-mask-image: radial-gradient(circle at 75% 25%, black 40%, transparent 80%);
+      border-radius: 18px;
     }
-    .bento-card p {
-      color: var(--muted);
-      font-size: 13px;
-      line-height: 1.75;
+    .peek-workout {
+      right: -25px;
+      bottom: -40px;
+      width: 230px;
+      mask-image: radial-gradient(circle at 65% 65%, black 35%, transparent 75%);
+      -webkit-mask-image: radial-gradient(circle at 65% 65%, black 35%, transparent 75%);
+      border-radius: 18px;
+    }
+    .peek-streaks {
+      right: -20px;
+      bottom: -30px;
+      width: 220px;
+      mask-image: radial-gradient(circle at 70% 70%, black 35%, transparent 75%);
+      -webkit-mask-image: radial-gradient(circle at 70% 70%, black 35%, transparent 75%);
+      border-radius: 18px;
+    }
+    .peek-analytics {
+      right: -20px;
+      top: 10px;
+      width: 290px;
+      mask-image: radial-gradient(circle at 80% 30%, black 40%, transparent 80%);
+      -webkit-mask-image: radial-gradient(circle at 80% 30%, black 40%, transparent 80%);
+      border-radius: 18px;
     }
 
-    /* ── Compliance Calendar mini ─────────────────────────────── */
-    .mini-calendar {
-      display: grid;
-      grid-template-columns: repeat(7, 1fr);
-      gap: 4px;
-      margin-top: 16px;
-      max-width: 260px;
+    /* ── Card Header Elements ─────────────────────────────────── */
+    .bento-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      position: relative;
+      z-index: 1;
     }
-    .cal-cell {
-      aspect-ratio: 1;
-      border-radius: 6px;
+    .bento-header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .bento-svg-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
       display: grid;
       place-items: center;
-      font: 600 9px/1 var(--mono);
-      color: var(--muted);
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.04);
+      background: rgba(59, 130, 246, 0.08);
+      border: 1px solid rgba(59, 130, 246, 0.22);
+      color: #60a5fa;
+      transition: border-color 0.3s, background-color 0.3s, transform 0.3s;
     }
-    .cal-cell.done {
-      background: rgba(59, 130, 246, 0.15);
-      border-color: rgba(59, 130, 246, 0.3);
+    .bento-card:hover .bento-svg-icon {
+      border-color: rgba(96, 165, 250, 0.5);
+      background: rgba(59, 130, 246, 0.16);
+      transform: scale(1.05);
+    }
+    .bento-svg-icon svg {
+      width: 22px;
+      height: 22px;
+      stroke-width: 1.8;
+    }
+    .bento-sys-tag {
+      font: 600 10px/1 var(--mono);
+      color: #64748b;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .bento-pill-badge {
+      font: 600 10px/1.2 var(--mono);
+      padding: 5px 10px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .pill-green {
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+      color: #34d399;
+    }
+    .pill-blue {
+      background: rgba(59, 130, 246, 0.12);
+      border: 1px solid rgba(59, 130, 246, 0.25);
       color: #93c5fd;
     }
-    .cal-cell.missed {
-      background: rgba(239, 68, 68, 0.08);
-      border-color: rgba(239, 68, 68, 0.15);
-      color: #f87171;
+    .pill-amber {
+      background: rgba(245, 158, 11, 0.12);
+      border: 1px solid rgba(245, 158, 11, 0.25);
+      color: #fbbf24;
     }
-    .cal-cell.rest { color: rgba(255,255,255,0.15); }
+    .pill-cyan {
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      color: #7dd3fc;
+    }
+    .pulse-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+      box-shadow: 0 0 8px currentColor;
+      animation: pulseLed 2s infinite ease-in-out;
+    }
+    @keyframes pulseLed {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
 
-    /* ── Mini Chart ───────────────────────────────────────────── */
-    .mini-chart {
-      margin-top: 16px;
-      height: 80px;
-      display: flex;
-      align-items: flex-end;
-      gap: 6px;
+    /* ── Card Content Typography ──────────────────────────────── */
+    .bento-body {
+      position: relative;
+      z-index: 1;
     }
-    .chart-bar {
-      flex: 1;
-      border-radius: 4px 4px 0 0;
-      background: linear-gradient(to top, var(--accent-blue), var(--cyan));
-      opacity: 0.5;
-      transition: opacity 0.3s, height 0.5s;
-      min-height: 8px;
+    .bento-subtitle {
+      font: 600 10.5px/1.2 var(--mono);
+      color: #38bdf8;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
     }
-    .bento-card:hover .chart-bar { opacity: 0.8; }
+    .bento-card h3 {
+      font-size: 21px;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      color: #ffffff;
+      margin-bottom: 10px;
+      line-height: 1.25;
+    }
+    .bento-card p {
+      color: #94a3b8;
+      font-size: 13.5px;
+      line-height: 1.7;
+      margin-bottom: 22px;
+      max-width: 580px;
+    }
 
     /* ═══════════════════════════════════════════════════════════════
-       INSTALL GUIDE
+       WIDGET 1: Obsidian Terminal & SQLite Inspector (Card 1)
        ═══════════════════════════════════════════════════════════════ */
+    .bento-terminal {
+      background: rgba(7, 8, 11, 0.92);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      overflow: hidden;
+      font-family: var(--mono);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 12px 24px -10px rgba(0, 0, 0, 0.6);
+      margin-top: 10px;
+      position: relative;
+      z-index: 1;
+    }
+    .terminal-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 9px 14px;
+      background: rgba(255, 255, 255, 0.025);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .terminal-dots {
+      display: flex;
+      gap: 6px;
+    }
+    .term-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.15);
+    }
+    .term-dot:nth-child(1) { background: rgba(239, 68, 68, 0.6); }
+    .term-dot:nth-child(2) { background: rgba(245, 158, 11, 0.6); }
+    .term-dot:nth-child(3) { background: rgba(16, 185, 129, 0.6); }
+    .terminal-tabs {
+      display: flex;
+      gap: 6px;
+    }
+    .term-tab {
+      background: none;
+      border: none;
+      color: #64748b;
+      font: 500 10px/1 var(--mono);
+      padding: 4px 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: color 0.2s, background-color 0.2s;
+    }
+    .term-tab:hover { color: #cbd5e1; }
+    .term-tab.active {
+      color: #38bdf8;
+      background: rgba(56, 189, 248, 0.1);
+    }
+    .terminal-content {
+      padding: 14px 16px;
+      font-size: 11.5px;
+      line-height: 1.7;
+      min-height: 92px;
+      color: #cbd5e1;
+    }
+    .term-prompt { color: #38bdf8; }
+    .term-cmd { color: #f8fafc; font-weight: 500; }
+    .term-res { color: #34d399; }
+    .term-val { color: #fbbf24; }
+    .term-comment { color: #64748b; font-style: italic; }
+    .terminal-footer {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 8px 16px;
+      background: rgba(255, 255, 255, 0.02);
+      border-top: 1px solid rgba(255, 255, 255, 0.04);
+      font-size: 10px;
+      color: #64748b;
+      flex-wrap: wrap;
+    }
+    .term-metric {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      color: #94a3b8;
+    }
+    .term-metric strong { color: #38bdf8; font-weight: 600; }
+
+    /* ═══════════════════════════════════════════════════════════════
+       WIDGET 2: Dual Wheel Picker Rest Timer (Card 2)
+       ═══════════════════════════════════════════════════════════════ */
+    .bento-wheel-timer {
+      background: rgba(14, 15, 20, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      border-radius: 18px;
+      padding: 18px 20px 16px;
+      position: relative;
+      z-index: 1;
+      margin-top: 8px;
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.6);
+      max-width: 440px;
+    }
+    .wheel-modal-header {
+      text-align: center;
+      font: 600 12.5px/1 var(--sans);
+      color: #94a3b8;
+      letter-spacing: 0.04em;
+      margin-bottom: 6px;
+    }
+    .wheel-time-display {
+      text-align: center;
+      font: 800 40px/1 var(--sans);
+      color: #ffffff;
+      letter-spacing: -0.04em;
+      margin-bottom: 14px;
+      transition: color 0.2s, text-shadow 0.2s;
+    }
+    .wheel-time-display.flash {
+      color: #38bdf8;
+      text-shadow: 0 0 20px rgba(56, 189, 248, 0.8);
+    }
+    .wheel-columns-wrap {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .wheel-column {
+      background: rgba(22, 24, 31, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 16px;
+      padding: 10px 8px 8px;
+      position: relative;
+      user-select: none;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .wheel-col-header {
+      text-align: center;
+      font: 600 10px/1 var(--mono);
+      color: #64748b;
+      letter-spacing: 0.12em;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+    }
+    .wheel-drum-viewport {
+      position: relative;
+      height: 170px; /* exactly 5 items of 34px */
+      width: 100%;
+      overflow: hidden;
+      mask-image: linear-gradient(to bottom, transparent 0%, black 18%, black 82%, transparent 100%);
+      -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 18%, black 82%, transparent 100%);
+      cursor: grab;
+      touch-action: pan-x;
+    }
+    .wheel-drum-viewport:active {
+      cursor: grabbing;
+    }
+    .wheel-highlight-band {
+      position: absolute;
+      top: 68px; /* Row 2 (center row of 5): 2 * 34px = 68px */
+      left: 5px;
+      right: 5px;
+      height: 34px;
+      background: rgba(45, 52, 70, 0.65);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 9px;
+      pointer-events: none;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 2px 8px rgba(0, 0, 0, 0.35);
+      z-index: 1;
+    }
+    .wheel-drum-track {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+      transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+      will-change: transform;
+    }
+    .wheel-item {
+      height: 34px;
+      line-height: 34px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font: 700 16px/34px var(--mono);
+      color: #64748b;
+      width: 100%;
+      cursor: pointer;
+      user-select: none;
+      transition: color 0.18s, font-size 0.18s, opacity 0.18s;
+      opacity: 0.32;
+      letter-spacing: -0.02em;
+    }
+    .wheel-item.near {
+      opacity: 0.65;
+      color: #94a3b8;
+      font-size: 17.5px;
+    }
+    .wheel-item.active {
+      color: #ffffff;
+      font-size: 21px;
+      font-weight: 800;
+      opacity: 1;
+      text-shadow: 0 0 12px rgba(255, 255, 255, 0.35);
+    }
+    .wheel-step-nav {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .wheel-chevron-btn {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: 6px;
+      color: #94a3b8;
+      font-size: 9px;
+      width: 28px;
+      height: 20px;
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      line-height: 1;
+    }
+    .wheel-chevron-btn:hover {
+      background: rgba(59, 130, 246, 0.2);
+      border-color: rgba(59, 130, 246, 0.4);
+      color: #38bdf8;
+    }
+    .wheel-actions-row {
+      display: grid;
+      grid-template-columns: 1.35fr 1.05fr 0.9fr;
+      gap: 8px;
+    }
+    .wheel-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 10px 10px;
+      border-radius: 12px;
+      font: 700 11.5px/1 var(--sans);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+    .btn-start {
+      background: #ffffff;
+      color: #0b0c10;
+      border: 1px solid #ffffff;
+    }
+    .btn-start:hover {
+      background: #e2e8f0;
+      transform: translateY(-1px);
+    }
+    .btn-start.running {
+      background: #3b82f6;
+      color: #ffffff;
+      border-color: #3b82f6;
+      box-shadow: 0 0 16px rgba(59, 130, 246, 0.5);
+    }
+    .btn-restart {
+      background: rgba(255, 255, 255, 0.05);
+      color: #e2e8f0;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .btn-restart:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: #ffffff;
+    }
+    .btn-end {
+      background: rgba(239, 68, 68, 0.08);
+      color: #fca5a5;
+      border: 1px solid rgba(239, 68, 68, 0.22);
+    }
+    .btn-end:hover {
+      background: rgba(239, 68, 68, 0.18);
+      color: #ef4444;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       WIDGET 3: 30-Day Split Heatmap & Streak (Card 3)
+       ═══════════════════════════════════════════════════════════════ */
+    .bento-matrix-widget {
+      background: rgba(7, 8, 11, 0.92);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      padding: 16px 18px;
+      position: relative;
+      z-index: 1;
+      margin-top: 8px;
+    }
+    .matrix-top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .matrix-streak-counter {
+      font: 700 11px/1 var(--mono);
+      color: #fbbf24;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .matrix-split-label {
+      font: 500 9.5px/1 var(--mono);
+      color: #64748b;
+      letter-spacing: 0.06em;
+    }
+    .calendar-clip-container {
+      position: relative;
+      border-radius: 14px;
+      overflow: hidden;
+      background: #141418;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 12px 28px -10px rgba(0, 0, 0, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.3s ease, box-shadow 0.3s ease;
+    }
+    .bento-card:hover .calendar-clip-container {
+      border-color: rgba(59, 130, 246, 0.35);
+      box-shadow: 0 18px 36px -12px rgba(0, 0, 0, 0.9), 0 0 24px -6px rgba(59, 130, 246, 0.22);
+      transform: translateY(-2px);
+    }
+    .calendar-clip-img {
+      width: 100%;
+      height: auto;
+      display: block;
+      object-fit: cover;
+      border-radius: 13px;
+    }
+    .compliance-legend-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .legend-chip {
+      font: 600 9px/1.2 var(--mono);
+      padding: 4px 8px;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      color: #94a3b8;
+    }
+    .legend-chip .legend-icon {
+      font-weight: 800;
+      font-size: 9.5px;
+    }
+    .legend-chip.legend-tick {
+      background: rgba(34, 197, 94, 0.08);
+      border-color: rgba(34, 197, 94, 0.25);
+      color: #86efac;
+    }
+    .legend-chip.legend-tick .legend-icon {
+      color: #22c55e;
+    }
+    .legend-chip.legend-cross {
+      background: rgba(239, 68, 68, 0.08);
+      border-color: rgba(239, 68, 68, 0.25);
+      color: #fca5a5;
+    }
+    .legend-chip.legend-cross .legend-icon {
+      color: #ef4444;
+    }
+    .legend-chip.legend-rest {
+      background: rgba(148, 163, 184, 0.05);
+      border-color: rgba(148, 163, 184, 0.12);
+      color: #94a3b8;
+    }
+    .legend-chip.legend-rest .legend-icon {
+      color: #64748b;
+      font-size: 11px;
+    }
+    .legend-chip.legend-today {
+      background: rgba(59, 130, 246, 0.09);
+      border-color: rgba(59, 130, 246, 0.28);
+      color: #93c5fd;
+    }
+    .legend-chip.legend-today .legend-icon {
+      color: #3b82f6;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       WIDGET 4: Real App Progression Telemetry Chart (Card 4)
+       ═══════════════════════════════════════════════════════════════ */
+    .bento-chart-widget {
+      background: rgba(14, 15, 20, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      border-radius: 18px;
+      padding: 16px 18px 14px;
+      position: relative;
+      z-index: 1;
+      margin-top: 8px;
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.55);
+    }
+    .chart-exercise-switcher {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .chart-meta-head {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .chart-meta-title {
+      font: 700 14.5px/1.2 var(--sans);
+      color: #ffffff;
+      letter-spacing: -0.01em;
+    }
+    .chart-meta-sub {
+      font: 600 9.5px/1 var(--mono);
+      color: #64748b;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .chart-exercise-tabs {
+      display: flex;
+      gap: 6px;
+    }
+    .chart-tab-btn {
+      font: 600 10px/1 var(--mono);
+      padding: 5px 10px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: #94a3b8;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .chart-tab-btn:hover { color: #f8fafc; }
+    .chart-tab-btn.active {
+      background: rgba(59, 130, 246, 0.2);
+      border-color: rgba(59, 130, 246, 0.5);
+      color: #93c5fd;
+    }
+    .chart-metrics-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .chart-metric-card {
+      background: rgba(22, 23, 29, 0.75);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 12px;
+      padding: 10px 14px;
+    }
+    .chart-metric-card-label {
+      font: 600 9px/1 var(--mono);
+      color: #64748b;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .chart-metric-card-val {
+      font: 800 19px/1.1 var(--sans);
+      color: #ffffff;
+      margin-bottom: 3px;
+    }
+    .chart-metric-card-sub {
+      font: 500 10px/1 var(--mono);
+      color: #94a3b8;
+    }
+    .trend-negative {
+      color: #f87171 !important;
+    }
+    .trend-positive {
+      color: #34d399 !important;
+    }
+    .chart-main-stage {
+      display: flex;
+      align-items: stretch;
+      gap: 8px;
+      height: 145px;
+      width: 100%;
+      position: relative;
+    }
+    .chart-y-axis {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      width: 26px;
+      height: 100%;
+      padding-bottom: 22px;
+      text-align: right;
+      font: 600 9px/1 var(--mono);
+      color: #64748b;
+      user-select: none;
+    }
+    .chart-svg-wrap {
+      flex: 1;
+      height: 100%;
+      position: relative;
+    }
+    .chart-svg-element {
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+    }
+    .chart-x-labels {
+      display: flex;
+      justify-content: space-between;
+      padding-left: 34px;
+      margin-top: 4px;
+      font: 600 8.5px/1 var(--mono);
+      color: #64748b;
+    }
     .install-section {
       padding: 120px 0;
       border-top: 1px solid var(--surface-border);
@@ -1020,6 +1647,10 @@
     @media (max-width: 900px) {
       .nav-links { display: none; }
       .bento-grid { grid-template-columns: 1fr; }
+      .bento-card-wide-left,
+      .bento-card-narrow-right,
+      .bento-card-narrow-left,
+      .bento-card-wide-right { grid-column: auto; }
       .install-steps { grid-template-columns: 1fr; }
       .cta-panel { flex-direction: column; align-items: flex-start; padding: 32px; }
       .cta-buttons { width: 100%; }
@@ -1334,58 +1965,321 @@
         <p class="section-desc reveal">Everything you need to plan, log, and understand your training—without accounts, noise, or a connection to the cloud.</p>
 
         <div class="bento-grid">
-          <!-- Card 1: SQLite -->
-          <div class="bento-card reveal">
-            <div class="bento-icon">◈</div>
-            <div class="card-subtitle">gym_tracker.db</div>
-            <h3>Embedded SQLite Storage</h3>
-            <p>Local ACID-compliant persistence with WAL journaling, foreign-key cascades, and versioned schema migrations. Zero telemetry, zero network calls — ever. Your data stays in an on-device database.</p>
-          </div>
+          <!-- ── CARD 1: EMBEDDED SQLITE (WIDE HERO - 7 COLS) ── -->
+          <div class="bento-card bento-card-wide-left reveal">
+            <img src="assets/screenshots/05_settings.png" alt="Settings & SQLite Storage" class="bento-screen-peek peek-settings" loading="lazy">
+            <div class="bento-header">
+              <div class="bento-header-left">
+                <div class="bento-svg-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <ellipse cx="12" cy="5" rx="9" ry="3"/>
+                    <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
+                    <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+                    <path d="M12 12v6"/>
+                  </svg>
+                </div>
+                <div>
+                  <div class="bento-sys-tag">SYS.01 · PERSISTENCE</div>
+                  <div class="bento-subtitle">gym_tracker.db</div>
+                </div>
+              </div>
+              <div class="bento-pill-badge pill-green">
+                <span class="pulse-dot"></span> WAL Mode Active
+              </div>
+            </div>
 
-          <!-- Card 2: Rest Timer -->
-          <div class="bento-card reveal">
-            <div class="bento-icon">◷</div>
-            <div class="card-subtitle">INFINITE MOMENTUM</div>
-            <h3>Smart Rest Timer</h3>
-            <p>Configurable minute/second picker with background countdown notifications via Notifee. Keeps running when the app is backgrounded. Timer completion triggers native haptic feedback. Never miss a set.</p>
-          </div>
+            <div class="bento-body">
+              <h3>Embedded SQLite Persistence</h3>
+              <p>Local ACID-compliant relational architecture with Write-Ahead Logging (WAL) and foreign-key cascades. Zero cloud telemetry, zero remote sync latency — 100% of your training history stays directly on on-device silicon.</p>
+            </div>
 
-          <!-- Card 3: Compliance -->
-          <div class="bento-card reveal">
-            <div class="bento-icon">▣</div>
-            <div class="card-subtitle">30-DAY MATRIX</div>
-            <h3>Compliance Tracking</h3>
-            <p>Monday-first calendar grid with distinct status markers for logged, missed, upcoming, and rest days. Streak calculations respect your configured split — rest days neither extend nor break your streak.</p>
-            <div class="mini-calendar" aria-hidden="true">
-              <div class="cal-cell done">✓</div><div class="cal-cell done">✓</div><div class="cal-cell rest">—</div>
-              <div class="cal-cell done">✓</div><div class="cal-cell done">✓</div><div class="cal-cell done">✓</div>
-              <div class="cal-cell rest">—</div><div class="cal-cell done">✓</div><div class="cal-cell done">✓</div>
-              <div class="cal-cell rest">—</div><div class="cal-cell done">✓</div><div class="cal-cell missed">✕</div>
-              <div class="cal-cell done">✓</div><div class="cal-cell rest">—</div><div class="cal-cell done">✓</div>
-              <div class="cal-cell done">✓</div><div class="cal-cell rest">—</div><div class="cal-cell done">✓</div>
-              <div class="cal-cell done">✓</div><div class="cal-cell done">✓</div>
+            <!-- Terminal Inspector Widget -->
+            <div class="bento-terminal">
+              <div class="terminal-bar">
+                <div class="terminal-dots" aria-hidden="true">
+                  <span class="term-dot"></span><span class="term-dot"></span><span class="term-dot"></span>
+                </div>
+                <div class="terminal-tabs" role="tablist">
+                  <button class="term-tab active" data-tab="query" type="button">QUERY</button>
+                  <button class="term-tab" data-tab="schema" type="button">SCHEMA</button>
+                  <button class="term-tab" data-tab="stats" type="button">STATS</button>
+                </div>
+              </div>
+              <div class="terminal-content" id="bentoTermBody">
+                <div><span class="term-prompt">sqlite&gt;</span> <span class="term-cmd">PRAGMA journal_mode = WAL;</span> <span class="term-res">&rarr; OK: wal_v2</span></div>
+                <div><span class="term-prompt">sqlite&gt;</span> <span class="term-cmd">SELECT exercise, MAX(weight_kg), reps FROM sets GROUP BY exercise;</span></div>
+                <div><span class="term-val">&bull; Bench Press:</span> 140.0 kg &times; 5 reps &nbsp;|&nbsp; <span class="term-val">&bull; Squat:</span> 185.0 kg &times; 3 reps</div>
+              </div>
+              <div class="terminal-footer">
+                <span class="term-metric">⚡ Latency: <strong>0.18ms</strong></span>
+                <span class="term-metric">🔒 Outbound Traffic: <strong>0 KB</strong></span>
+                <span class="term-metric">📦 Storage: <strong>100% Local</strong></span>
+              </div>
             </div>
           </div>
 
-          <!-- Card 4: Analytics -->
-          <div class="bento-card reveal">
-            <div class="bento-icon">⌁</div>
-            <div class="card-subtitle">PINNED Y-AXIS</div>
-            <h3>Progression Analytics</h3>
-            <p>Estimated 1RM progression curves (Epley formula) and total volume trends with session, ISO week, or calendar month granularity. Dynamic headroom so data points never clip the chart boundary.</p>
-            <div class="mini-chart" aria-hidden="true">
-              <div class="chart-bar" style="height: 35%"></div>
-              <div class="chart-bar" style="height: 42%"></div>
-              <div class="chart-bar" style="height: 38%"></div>
-              <div class="chart-bar" style="height: 55%"></div>
-              <div class="chart-bar" style="height: 50%"></div>
-              <div class="chart-bar" style="height: 62%"></div>
-              <div class="chart-bar" style="height: 58%"></div>
-              <div class="chart-bar" style="height: 72%"></div>
-              <div class="chart-bar" style="height: 68%"></div>
-              <div class="chart-bar" style="height: 80%"></div>
-              <div class="chart-bar" style="height: 75%"></div>
-              <div class="chart-bar" style="height: 88%"></div>
+          <!-- ── CARD 2: SMART REST TIMER (NARROW - 5 COLS) ── -->
+          <div class="bento-card bento-card-narrow-right reveal">
+            <img src="assets/screenshots/timer_wheel_modal.png" alt="Workout Logger & Rest Timer Modal" class="bento-screen-peek peek-workout" loading="lazy">
+            <div class="bento-header">
+              <div class="bento-header-left">
+                <div class="bento-svg-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <circle cx="12" cy="13" r="8"/>
+                    <path d="M12 9v4l2.5 2.5"/>
+                    <path d="M10 2h4"/>
+                    <path d="M19 6l-1.5 1.5"/>
+                  </svg>
+                </div>
+                <div>
+                  <div class="bento-sys-tag">SYS.02 · CADENCE</div>
+                  <div class="bento-subtitle">Tactile Wheel Picker</div>
+                </div>
+              </div>
+              <div class="bento-pill-badge pill-blue">
+                <span class="pulse-dot"></span> Notifee Service
+              </div>
+            </div>
+
+            <div class="bento-body">
+              <h3>Smart Rest Timer</h3>
+              <p>Infinite scroll wheel picker with minute and second drum dials. Background push alerts via Notifee deliver exact countdown notifications and native haptic pulses.</p>
+            </div>
+
+            <!-- In-App Dual Drum Wheel Picker Modal Widget -->
+            <div class="bento-wheel-timer">
+              <div class="wheel-modal-header">Rest Timer</div>
+              <div class="wheel-time-display" id="bentoTimerDisplay">1:00</div>
+              
+              <div class="wheel-columns-wrap">
+                <!-- MIN Column -->
+                <div class="wheel-column" id="minWheelCol">
+                  <div class="wheel-col-header">MIN</div>
+                  <div class="wheel-drum-viewport" id="minDrumViewport" title="Scroll, drag or click to change minutes" tabindex="0">
+                    <div class="wheel-highlight-band"></div>
+                    <div class="wheel-drum-track" id="minDrumTrack">
+                      <!-- Rendered dynamically by JS with initial fallback -->
+                      <div class="wheel-item" data-val="60">60</div>
+                      <div class="wheel-item near" data-val="0">00</div>
+                      <div class="wheel-item active" data-val="1">01</div>
+                      <div class="wheel-item near" data-val="2">02</div>
+                      <div class="wheel-item" data-val="3">03</div>
+                    </div>
+                  </div>
+                  <div class="wheel-step-nav">
+                    <button class="wheel-chevron-btn" id="minStepUpBtn" type="button" aria-label="Decrease minute">▲</button>
+                    <button class="wheel-chevron-btn" id="minStepDownBtn" type="button" aria-label="Increase minute">▼</button>
+                  </div>
+                </div>
+
+                <!-- SEC Column -->
+                <div class="wheel-column" id="secWheelCol">
+                  <div class="wheel-col-header">SEC</div>
+                  <div class="wheel-drum-viewport" id="secDrumViewport" title="Scroll, drag or click to change seconds" tabindex="0">
+                    <div class="wheel-highlight-band"></div>
+                    <div class="wheel-drum-track" id="secDrumTrack">
+                      <!-- Rendered dynamically by JS with initial fallback -->
+                      <div class="wheel-item" data-val="58">58</div>
+                      <div class="wheel-item near" data-val="59">59</div>
+                      <div class="wheel-item active" data-val="0">00</div>
+                      <div class="wheel-item near" data-val="1">01</div>
+                      <div class="wheel-item" data-val="2">02</div>
+                    </div>
+                  </div>
+                  <div class="wheel-step-nav">
+                    <button class="wheel-chevron-btn" id="secStepUpBtn" type="button" aria-label="Decrease second">▲</button>
+                    <button class="wheel-chevron-btn" id="secStepDownBtn" type="button" aria-label="Increase second">▼</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Action buttons matching screenshot -->
+              <div class="wheel-actions-row">
+                <button class="wheel-btn btn-start" id="bentoTimerStartBtn" type="button">▶ Start</button>
+                <button class="wheel-btn btn-restart" id="bentoTimerRestartBtn" type="button">⟳ Restart</button>
+                <button class="wheel-btn btn-end" id="bentoTimerEndBtn" type="button"><span style="color: #ef4444; font-size: 9px;">■</span> End</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── CARD 3: COMPLIANCE MATRIX (NARROW - 5 COLS) ── -->
+          <div class="bento-card bento-card-narrow-left reveal">
+            <img src="assets/screenshots/07_streaks.png" alt="Streaks & Consistency Screen" class="bento-screen-peek peek-streaks" loading="lazy">
+            <div class="bento-header">
+              <div class="bento-header-left">
+                <div class="bento-svg-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <rect x="3" y="4" width="18" height="18" rx="2"/>
+                    <path d="M16 2v4M8 2v4M3 10h18"/>
+                    <path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/>
+                  </svg>
+                </div>
+                <div>
+                  <div class="bento-sys-tag">SYS.03 · CONSISTENCY</div>
+                  <div class="bento-subtitle">30-Day Matrix</div>
+                </div>
+              </div>
+              <div class="bento-pill-badge pill-amber">
+                <span class="pulse-dot"></span> 3-Day Streak
+              </div>
+            </div>
+
+            <div class="bento-body">
+              <h3>Split Compliance &amp; Streaks</h3>
+              <p>Monday-first matrix with split-aware streak intelligence. Configured rest days neither extend nor penalize your unbroken streak—rewarding discipline and recovery alike.</p>
+            </div>
+
+            <!-- In-App Compliance Calendar Screenshot Widget -->
+            <div class="bento-matrix-widget">
+              <div class="matrix-top-bar">
+                <span class="matrix-streak-counter">🔥 Active Streak: 3 Days</span>
+                <span class="matrix-split-label">In-App Compliance Calendar</span>
+              </div>
+              <div class="calendar-clip-container">
+                <img src="assets/screenshots/calendar_compliance_card.png" alt="In-App Monthly Split Compliance Calendar with workout checkmarks, missed session cross, and rest dots" class="calendar-clip-img" loading="lazy">
+              </div>
+              <div class="compliance-legend-row">
+                <span class="legend-chip legend-tick"><span class="legend-icon">✔</span> Workout Logged</span>
+                <span class="legend-chip legend-cross"><span class="legend-icon">✕</span> Missed Session</span>
+                <span class="legend-chip legend-rest"><span class="legend-icon">•</span> Rest Day</span>
+                <span class="legend-chip legend-today"><span class="legend-icon">◎</span> Active Day</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── CARD 4: PROGRESSION ANALYTICS (WIDE HERO - 7 COLS) ── -->
+          <div class="bento-card bento-card-wide-right reveal">
+            <img src="assets/screenshots/progression_chart_modal.png" alt="Analytics & Progression Screen" class="bento-screen-peek peek-analytics" loading="lazy">
+            <div class="bento-header">
+              <div class="bento-header-left">
+                <div class="bento-svg-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path d="M3 20h18"/>
+                    <path d="M5 16l4-6 4 3 6-9"/>
+                    <circle cx="19" cy="4" r="1.5" fill="currentColor"/>
+                  </svg>
+                </div>
+                <div>
+                  <div class="bento-sys-tag">SYS.04 · TELEMETRY</div>
+                  <div class="bento-subtitle">Pinned Y-Axis · Session View</div>
+                </div>
+              </div>
+              <div class="bento-pill-badge pill-cyan">
+                <span class="pulse-dot"></span> Epley 1RM Model
+              </div>
+            </div>
+
+            <div class="bento-body">
+              <h3>Progression Analytics &amp; 1RM Curves</h3>
+              <p>Algorithmic 1RM curve modeling computed via the validated Epley formula (<code style="color: #38bdf8; font-family: var(--mono); font-size: 12px; background: rgba(56,189,248,0.1); padding: 2px 6px; border-radius: 4px;">1RM = w &times; (1 + r/30)</code>). Pinned Y-axis with dynamic headroom prevents performance spikes from clipping viewport boundaries.</p>
+            </div>
+
+            <!-- In-App Progression Telemetry Chart Widget matching app screenshot -->
+            <div class="bento-chart-widget">
+              <div class="chart-exercise-switcher">
+                <div class="chart-meta-head">
+                  <div class="chart-meta-title" id="chartExTitle">Barbell Back Squat</div>
+                  <div class="chart-meta-sub">Max Weight (KG) &bull; SESSION VIEW</div>
+                </div>
+                <div class="chart-exercise-tabs" role="tablist">
+                  <button class="chart-tab-btn active" data-exercise="squat" type="button">Back Squat</button>
+                  <button class="chart-tab-btn" data-exercise="bench" type="button">Bench Press</button>
+                  <button class="chart-tab-btn" data-exercise="deadlift" type="button">Deadlift</button>
+                </div>
+              </div>
+
+              <!-- Two Metric Summary Cards matching screenshot -->
+              <div class="chart-metrics-row">
+                <div class="chart-metric-card">
+                  <div class="chart-metric-card-label">BEST PERFORMANCE</div>
+                  <div class="chart-metric-card-val" id="chartBestVal">102.5 kg</div>
+                  <div class="chart-metric-card-sub" id="chartBestEst">Est. 1RM: 130 kg (8 reps)</div>
+                </div>
+                <div class="chart-metric-card">
+                  <div class="chart-metric-card-label">4-WEEK TREND</div>
+                  <div class="chart-metric-card-val trend-negative" id="chartTrendVal">-19%</div>
+                  <div class="chart-metric-card-sub" id="chartTrendVol">Volume: 8055 vs 9995 kg</div>
+                </div>
+              </div>
+
+              <!-- Pinned Y-Axis & SVG Graph Stage -->
+              <div class="chart-main-stage">
+                <!-- Pinned Y-Axis Labels matching screenshot: 137, 109, 82, 54, 27, 0 -->
+                <div class="chart-y-axis" id="chartYAxisLabels">
+                  <span>137</span>
+                  <span>109</span>
+                  <span>82</span>
+                  <span>54</span>
+                  <span>27</span>
+                  <span>0</span>
+                </div>
+
+                <div class="chart-svg-wrap">
+                  <svg class="chart-svg-element" viewBox="0 0 500 120" preserveAspectRatio="none" aria-hidden="true">
+                    <defs>
+                      <linearGradient id="appChartAreaGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.25"/>
+                        <stop offset="100%" stop-color="#3b82f6" stop-opacity="0.0"/>
+                      </linearGradient>
+                      <filter id="appDotGlow" x="-20%" y="-20%" width="140%" height="140%">
+                        <feDropShadow dx="0" dy="0" stdDeviation="2" flood-color="#38bdf8" flood-opacity="0.8"/>
+                      </filter>
+                    </defs>
+                    <!-- Horizontal Dashed Gridlines -->
+                    <line x1="0" y1="5" x2="500" y2="5" stroke="rgba(255,255,255,0.06)" stroke-dasharray="3 3"/>
+                    <line x1="0" y1="28" x2="500" y2="28" stroke="rgba(255,255,255,0.06)" stroke-dasharray="3 3"/>
+                    <line x1="0" y1="51" x2="500" y2="51" stroke="rgba(255,255,255,0.06)" stroke-dasharray="3 3"/>
+                    <line x1="0" y1="74" x2="500" y2="74" stroke="rgba(255,255,255,0.06)" stroke-dasharray="3 3"/>
+                    <line x1="0" y1="97" x2="500" y2="97" stroke="rgba(255,255,255,0.06)" stroke-dasharray="3 3"/>
+                    <line x1="0" y1="118" x2="500" y2="118" stroke="rgba(255,255,255,0.08)"/>
+
+                    <!-- Spline Curve Line matching screenshot data points (100 -> 102.5 -> 102.5 -> 100 -> 87.5 -> 102.5 -> 102.5) -->
+                    <path id="appChartLine" d="M 15 38 L 92 36 L 169 36 L 246 38 L 323 48 L 400 36 L 477 36" fill="none" stroke="#3b82f6" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+
+                    <!-- Points Group with labels directly above dots matching screenshot -->
+                    <g id="appChartPoints">
+                      <!-- 7 Aug: 100 -->
+                      <text x="15" y="27" fill="#ffffff" font-size="9" font-family="var(--mono)" font-weight="600" text-anchor="middle">100</text>
+                      <circle cx="15" cy="38" r="4" fill="#ffffff" stroke="#3b82f6" stroke-width="2" filter="url(#appDotGlow)"/>
+
+                      <!-- 21 Aug: 102.5 -->
+                      <text x="92" y="25" fill="#ffffff" font-size="9" font-family="var(--mono)" font-weight="600" text-anchor="middle">102.5</text>
+                      <circle cx="92" cy="36" r="4" fill="#ffffff" stroke="#3b82f6" stroke-width="2" filter="url(#appDotGlow)"/>
+
+                      <!-- 28 Aug: 102.5 -->
+                      <text x="169" y="25" fill="#ffffff" font-size="9" font-family="var(--mono)" font-weight="600" text-anchor="middle">102.5</text>
+                      <circle cx="169" cy="36" r="4" fill="#ffffff" stroke="#3b82f6" stroke-width="2" filter="url(#appDotGlow)"/>
+
+                      <!-- 4 Sep: 100 -->
+                      <text x="246" y="27" fill="#ffffff" font-size="9" font-family="var(--mono)" font-weight="600" text-anchor="middle">100</text>
+                      <circle cx="246" cy="38" r="4" fill="#ffffff" stroke="#3b82f6" stroke-width="2" filter="url(#appDotGlow)"/>
+
+                      <!-- 11 Sep: 87.5 (dip) -->
+                      <text x="323" y="38" fill="#ffffff" font-size="9" font-family="var(--mono)" font-weight="600" text-anchor="middle">87.5</text>
+                      <circle cx="323" cy="48" r="4" fill="#ffffff" stroke="#3b82f6" stroke-width="2" filter="url(#appDotGlow)"/>
+
+                      <!-- 18 Sep: 102.5 -->
+                      <text x="400" y="25" fill="#ffffff" font-size="9" font-family="var(--mono)" font-weight="600" text-anchor="middle">102.5</text>
+                      <circle cx="400" cy="36" r="4" fill="#ffffff" stroke="#3b82f6" stroke-width="2" filter="url(#appDotGlow)"/>
+
+                      <!-- 25 Sep: 102.5 -->
+                      <text x="477" y="25" fill="#ffffff" font-size="9" font-family="var(--mono)" font-weight="600" text-anchor="middle">102.5</text>
+                      <circle cx="477" cy="36" r="4" fill="#ffffff" stroke="#3b82f6" stroke-width="2" filter="url(#appDotGlow)"/>
+                    </g>
+                  </svg>
+                </div>
+              </div>
+
+              <!-- X-Axis Dates matching screenshot -->
+              <div class="chart-x-labels" id="chartXLabels">
+                <span>7 Aug '26</span>
+                <span>21 Aug '26</span>
+                <span>28 Aug '26</span>
+                <span>4 Sep '26</span>
+                <span>11 Sep '26</span>
+                <span>18 Sep '26</span>
+                <span>25 Sep '26</span>
+              </div>
             </div>
           </div>
         </div>
@@ -2302,6 +3196,500 @@
       requestAnimationFrame(drawStars);
     }
     requestAnimationFrame(drawStars);
+  })();
+
+  /* ═══════════════════════════════════════════════════════════
+     BENTO GRID INTERACTIVE ENGINE (Terminal, Timer, Chart)
+     ═══════════════════════════════════════════════════════════ */
+  (function initBentoInteractive() {
+    // 1. Terminal Tabs
+    const termBody = document.getElementById('bentoTermBody');
+    const termTabs = document.querySelectorAll('.term-tab');
+    const tabData = {
+      query: `<div><span class="term-prompt">sqlite&gt;</span> <span class="term-cmd">PRAGMA journal_mode = WAL;</span> <span class="term-res">&rarr; OK: wal_v2</span></div>
+<div><span class="term-prompt">sqlite&gt;</span> <span class="term-cmd">SELECT exercise, MAX(weight_kg), reps FROM sets GROUP BY exercise;</span></div>
+<div><span class="term-val">&bull; Bench Press:</span> 140.0 kg &times; 5 reps &nbsp;|&nbsp; <span class="term-val">&bull; Squat:</span> 185.0 kg &times; 3 reps</div>`,
+      schema: `<div><span class="term-cmd">CREATE TABLE</span> <span class="term-prompt">sets</span> (</div>
+<div>&nbsp;&nbsp;id <span class="term-val">INTEGER PRIMARY KEY</span>, workout_id <span class="term-val">INT REFERENCES</span> workouts(id) <span class="term-val">ON DELETE CASCADE</span>,</div>
+<div>&nbsp;&nbsp;exercise <span class="term-val">TEXT NOT NULL</span>, weight_kg <span class="term-val">REAL</span>, reps <span class="term-val">INT</span>, rpe <span class="term-val">REAL</span></div>
+<div>); <span class="term-comment">-- Zero cloud telemetry schema</span></div>`,
+      stats: `<div><span class="term-res">&bull; Database Footprint:</span> 1.42 MB (2,840 historical sets stored)</div>
+<div><span class="term-res">&bull; Network Outbound:</span> <span class="term-val">0 bytes</span> (air-gapped local storage)</div>
+<div><span class="term-res">&bull; Query Benchmark:</span> <span class="term-prompt">0.18ms</span> (zero network roundtrips)</div>`
+    };
+
+    termTabs.forEach(btn => {
+      btn.addEventListener('click', () => {
+        termTabs.forEach(t => t.classList.remove('active'));
+        btn.classList.add('active');
+        const tab = btn.dataset.tab;
+        if (tabData[tab] && termBody) {
+          termBody.innerHTML = tabData[tab];
+        }
+      });
+    });
+
+    // 2. Dual Drum Wheel Rest Timer Interactive Controller
+    const timerDisplay = document.getElementById('bentoTimerDisplay');
+    const startBtn = document.getElementById('bentoTimerStartBtn');
+    const restartBtn = document.getElementById('bentoTimerRestartBtn');
+    const endBtn = document.getElementById('bentoTimerEndBtn');
+
+    const minTrack = document.getElementById('minDrumTrack');
+    const secTrack = document.getElementById('secDrumTrack');
+    const minViewport = document.getElementById('minDrumViewport');
+    const secViewport = document.getElementById('secDrumViewport');
+    const minStepUpBtn = document.getElementById('minStepUpBtn');
+    const minStepDownBtn = document.getElementById('minStepDownBtn');
+    const secStepUpBtn = document.getElementById('secStepUpBtn');
+    const secStepDownBtn = document.getElementById('secStepDownBtn');
+
+    const ITEM_HEIGHT = 34; // matches .wheel-item height and highlight band
+    let curMin = 1;
+    let curSec = 0;
+    let initialPresetSec = 60; // 1:00
+    let remainingTotalSec = 60;
+    let timerInterval = null;
+    let isRunning = false;
+
+    // Build the drum items:
+    // MIN items: [59, 60, 0, 1, 2, ..., 60, 0, 1]
+    const minValues = [59, 60];
+    for (let i = 0; i <= 60; i++) minValues.push(i);
+    minValues.push(0, 1);
+
+    // SEC items: [58, 59, 0, 1, 2, ..., 59, 0, 1]
+    const secValues = [58, 59];
+    for (let i = 0; i <= 59; i++) secValues.push(i);
+    secValues.push(0, 1);
+
+    if (minTrack) {
+      minTrack.innerHTML = '';
+      minValues.forEach((val, idx) => {
+        const item = document.createElement('div');
+        item.className = 'wheel-item';
+        item.dataset.val = val;
+        item.dataset.idx = idx;
+        item.textContent = String(val).padStart(2, '0');
+        item.addEventListener('click', () => {
+          if (isRunning) pauseTimer();
+          setMinute(val, true);
+        });
+        minTrack.appendChild(item);
+      });
+    }
+
+    if (secTrack) {
+      secTrack.innerHTML = '';
+      secValues.forEach((val, idx) => {
+        const item = document.createElement('div');
+        item.className = 'wheel-item';
+        item.dataset.val = val;
+        item.dataset.idx = idx;
+        item.textContent = String(val).padStart(2, '0');
+        item.addEventListener('click', () => {
+          if (isRunning) pauseTimer();
+          setSecond(val, true);
+        });
+        secTrack.appendChild(item);
+      });
+    }
+
+    const minItems = minTrack ? minTrack.querySelectorAll('.wheel-item') : [];
+    const secItems = secTrack ? secTrack.querySelectorAll('.wheel-item') : [];
+
+    function setMinClasses(activeIdx) {
+      minItems.forEach((item, idx) => {
+        const diff = Math.abs(idx - activeIdx);
+        item.classList.toggle('active', diff === 0);
+        item.classList.toggle('near', diff === 1);
+      });
+    }
+
+    function setSecClasses(activeIdx) {
+      secItems.forEach((item, idx) => {
+        const diff = Math.abs(idx - activeIdx);
+        item.classList.toggle('active', diff === 0);
+        item.classList.toggle('near', diff === 1);
+      });
+    }
+
+    function updateMinDrum(m, animate = true) {
+      const prevMin = curMin;
+      curMin = ((m % 61) + 61) % 61;
+
+      if (animate && prevMin === 0 && curMin === 60) {
+        minTrack.style.transition = 'transform 0.22s cubic-bezier(0.16, 1, 0.3, 1)';
+        minTrack.style.transform = `translateY(${ITEM_HEIGHT}px)`;
+        setMinClasses(1);
+        setTimeout(() => {
+          if (!minTrack) return;
+          minTrack.style.transition = 'none';
+          minTrack.style.transform = `translateY(${-60 * ITEM_HEIGHT}px)`;
+          void minTrack.offsetHeight;
+          minTrack.style.transition = '';
+          setMinClasses(62);
+        }, 230);
+        return;
+      }
+
+      if (animate && prevMin === 60 && curMin === 0) {
+        minTrack.style.transition = 'transform 0.22s cubic-bezier(0.16, 1, 0.3, 1)';
+        minTrack.style.transform = `translateY(${-61 * ITEM_HEIGHT}px)`;
+        setMinClasses(63);
+        setTimeout(() => {
+          if (!minTrack) return;
+          minTrack.style.transition = 'none';
+          minTrack.style.transform = 'translateY(0px)';
+          void minTrack.offsetHeight;
+          minTrack.style.transition = '';
+          setMinClasses(2);
+        }, 230);
+        return;
+      }
+
+      const ty = - curMin * ITEM_HEIGHT;
+      if (minTrack) {
+        minTrack.style.transition = animate ? 'transform 0.22s cubic-bezier(0.16, 1, 0.3, 1)' : 'none';
+        minTrack.style.transform = `translateY(${ty}px)`;
+      }
+      setMinClasses(curMin + 2);
+    }
+
+    function updateSecDrum(s, animate = true) {
+      const prevSec = curSec;
+      curSec = ((s % 60) + 60) % 60;
+
+      if (animate && prevSec === 0 && curSec === 59) {
+        secTrack.style.transition = 'transform 0.22s cubic-bezier(0.16, 1, 0.3, 1)';
+        secTrack.style.transform = `translateY(${ITEM_HEIGHT}px)`;
+        setSecClasses(1);
+        setTimeout(() => {
+          if (!secTrack) return;
+          secTrack.style.transition = 'none';
+          secTrack.style.transform = `translateY(${-59 * ITEM_HEIGHT}px)`;
+          void secTrack.offsetHeight;
+          secTrack.style.transition = '';
+          setSecClasses(61);
+        }, 230);
+        return;
+      }
+
+      if (animate && prevSec === 59 && curSec === 0) {
+        secTrack.style.transition = 'transform 0.22s cubic-bezier(0.16, 1, 0.3, 1)';
+        secTrack.style.transform = `translateY(${-60 * ITEM_HEIGHT}px)`;
+        setSecClasses(62);
+        setTimeout(() => {
+          if (!secTrack) return;
+          secTrack.style.transition = 'none';
+          secTrack.style.transform = 'translateY(0px)';
+          void secTrack.offsetHeight;
+          secTrack.style.transition = '';
+          setSecClasses(2);
+        }, 230);
+        return;
+      }
+
+      const ty = - curSec * ITEM_HEIGHT;
+      if (secTrack) {
+        secTrack.style.transition = animate ? 'transform 0.22s cubic-bezier(0.16, 1, 0.3, 1)' : 'none';
+        secTrack.style.transform = `translateY(${ty}px)`;
+      }
+      setSecClasses(curSec + 2);
+    }
+
+    function renderTimeDisplay() {
+      if (!timerDisplay) return;
+      const m = Math.floor(remainingTotalSec / 60);
+      const s = remainingTotalSec % 60;
+      timerDisplay.textContent = `${m}:${String(s).padStart(2, '0')}`;
+    }
+
+    function setMinute(m, animate = true) {
+      updateMinDrum(m, animate);
+      remainingTotalSec = curMin * 60 + curSec;
+      initialPresetSec = remainingTotalSec;
+      renderTimeDisplay();
+    }
+
+    function setSecond(s, animate = true) {
+      updateSecDrum(s, animate);
+      remainingTotalSec = curMin * 60 + curSec;
+      initialPresetSec = remainingTotalSec;
+      renderTimeDisplay();
+    }
+
+    // Wheel scroll handlers
+    if (minViewport) {
+      minViewport.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        if (isRunning) pauseTimer();
+        const delta = e.deltaY > 0 ? 1 : -1;
+        setMinute(curMin + delta, true);
+      }, { passive: false });
+    }
+
+    if (secViewport) {
+      secViewport.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        if (isRunning) pauseTimer();
+        const delta = e.deltaY > 0 ? 1 : -1;
+        setSecond(curSec + delta, true);
+      }, { passive: false });
+    }
+
+    // Step chevron buttons
+    if (minStepUpBtn) {
+      minStepUpBtn.addEventListener('click', () => {
+        if (isRunning) pauseTimer();
+        setMinute(curMin - 1, true);
+      });
+    }
+    if (minStepDownBtn) {
+      minStepDownBtn.addEventListener('click', () => {
+        if (isRunning) pauseTimer();
+        setMinute(curMin + 1, true);
+      });
+    }
+    if (secStepUpBtn) {
+      secStepUpBtn.addEventListener('click', () => {
+        if (isRunning) pauseTimer();
+        setSecond(curSec - 1, true);
+      });
+    }
+    if (secStepDownBtn) {
+      secStepDownBtn.addEventListener('click', () => {
+        if (isRunning) pauseTimer();
+        setSecond(curSec + 1, true);
+      });
+    }
+
+    // Touch & Pointer Drag for responsive tactile swiping
+    function attachDragControls(viewport, onStep) {
+      if (!viewport) return;
+      let isDragging = false;
+      let startY = 0;
+      let accum = 0;
+
+      viewport.addEventListener('pointerdown', (e) => {
+        isDragging = true;
+        startY = e.clientY;
+        accum = 0;
+        try { viewport.setPointerCapture(e.pointerId); } catch (_) {}
+      });
+
+      viewport.addEventListener('pointermove', (e) => {
+        if (!isDragging) return;
+        const dy = e.clientY - startY;
+        startY = e.clientY;
+        accum += dy;
+        if (Math.abs(accum) >= 24) {
+          const step = accum > 0 ? -1 : 1; // drag down = previous, drag up = next
+          accum = 0;
+          if (isRunning) pauseTimer();
+          onStep(step);
+        }
+      });
+
+      function stopDrag(e) {
+        if (!isDragging) return;
+        isDragging = false;
+        try { viewport.releasePointerCapture(e.pointerId); } catch (_) {}
+      }
+
+      viewport.addEventListener('pointerup', stopDrag);
+      viewport.addEventListener('pointercancel', stopDrag);
+    }
+
+    attachDragControls(minViewport, (step) => setMinute(curMin + step, true));
+    attachDragControls(secViewport, (step) => setSecond(curSec + step, true));
+
+    function pauseTimer() {
+      clearInterval(timerInterval);
+      isRunning = false;
+      if (startBtn) {
+        startBtn.textContent = '▶ Start';
+        startBtn.classList.remove('running');
+      }
+    }
+
+    function startTimer() {
+      if (remainingTotalSec <= 0) {
+        remainingTotalSec = (initialPresetSec > 0 ? initialPresetSec : 60);
+      }
+      isRunning = true;
+      if (startBtn) {
+        startBtn.textContent = '⏸ Pause';
+        startBtn.classList.add('running');
+      }
+
+      clearInterval(timerInterval);
+      timerInterval = setInterval(() => {
+        if (remainingTotalSec > 0) {
+          remainingTotalSec--;
+          renderTimeDisplay();
+          const m = Math.floor(remainingTotalSec / 60);
+          const s = remainingTotalSec % 60;
+          updateMinDrum(m, true);
+          updateSecDrum(s, true);
+        } else {
+          pauseTimer();
+          if (timerDisplay) {
+            timerDisplay.classList.add('flash');
+            setTimeout(() => timerDisplay.classList.remove('flash'), 1200);
+          }
+        }
+      }, 1000);
+    }
+
+    // Action buttons
+    if (startBtn) {
+      startBtn.addEventListener('click', () => {
+        if (isRunning) {
+          pauseTimer();
+        } else {
+          startTimer();
+        }
+      });
+    }
+
+    if (restartBtn) {
+      restartBtn.addEventListener('click', () => {
+        pauseTimer();
+        remainingTotalSec = initialPresetSec > 0 ? initialPresetSec : 60;
+        renderTimeDisplay();
+        const m = Math.floor(remainingTotalSec / 60);
+        const s = remainingTotalSec % 60;
+        updateMinDrum(m, true);
+        updateSecDrum(s, true);
+      });
+    }
+
+    if (endBtn) {
+      endBtn.addEventListener('click', () => {
+        pauseTimer();
+        remainingTotalSec = 0;
+        renderTimeDisplay();
+        updateMinDrum(0, true);
+        updateSecDrum(0, true);
+      });
+    }
+
+    // Initial setup matching the app screenshot (1:00)
+    updateMinDrum(1, false);
+    updateSecDrum(0, false);
+    renderTimeDisplay();
+
+    // 3. Progression Analytics Chart Switcher (Exact App View)
+    const chartExTitle = document.getElementById('chartExTitle');
+    const chartBestVal = document.getElementById('chartBestVal');
+    const chartBestEst = document.getElementById('chartBestEst');
+    const chartTrendVal = document.getElementById('chartTrendVal');
+    const chartTrendVol = document.getElementById('chartTrendVol');
+    const chartYAxisLabels = document.getElementById('chartYAxisLabels');
+    const appChartLine = document.getElementById('appChartLine');
+    const appChartPoints = document.getElementById('appChartPoints');
+    const chartXLabels = document.getElementById('chartXLabels');
+    const appChartTabs = document.querySelectorAll('.chart-tab-btn');
+
+    const appExerciseData = {
+      squat: {
+        title: 'Barbell Back Squat',
+        bestVal: '102.5 kg',
+        bestEst: 'Est. 1RM: 130 kg (8 reps)',
+        trendVal: '-19%',
+        trendClass: 'trend-negative',
+        trendVol: 'Volume: 8055 vs 9995 kg',
+        yLabels: ['137', '109', '82', '54', '27', '0'],
+        lineD: 'M 15 38 L 92 36 L 169 36 L 246 38 L 323 48 L 400 36 L 477 36',
+        points: [
+          { x: 15, y: 38, val: '100', textY: 27 },
+          { x: 92, y: 36, val: '102.5', textY: 25 },
+          { x: 169, y: 36, val: '102.5', textY: 25 },
+          { x: 246, y: 38, val: '100', textY: 27 },
+          { x: 323, y: 48, val: '87.5', textY: 38 },
+          { x: 400, y: 36, val: '102.5', textY: 25 },
+          { x: 477, y: 36, val: '102.5', textY: 25 }
+        ],
+        xDates: ["7 Aug '26", "21 Aug '26", "28 Aug '26", "4 Sep '26", "11 Sep '26", "18 Sep '26", "25 Sep '26"]
+      },
+      bench: {
+        title: 'Barbell Flat Bench Press',
+        bestVal: '140.0 kg',
+        bestEst: 'Est. 1RM: 163.3 kg (5 reps)',
+        trendVal: '+8%',
+        trendClass: 'trend-positive',
+        trendVol: 'Volume: 12450 vs 11500 kg',
+        yLabels: ['175', '140', '105', '70', '35', '0'],
+        lineD: 'M 15 50 L 92 44 L 169 40 L 246 34 L 323 30 L 400 24 L 477 20',
+        points: [
+          { x: 15, y: 50, val: '125', textY: 39 },
+          { x: 92, y: 44, val: '127.5', textY: 33 },
+          { x: 169, y: 40, val: '130', textY: 29 },
+          { x: 246, y: 34, val: '132.5', textY: 23 },
+          { x: 323, y: 30, val: '135', textY: 19 },
+          { x: 400, y: 24, val: '137.5', textY: 13 },
+          { x: 477, y: 20, val: '140', textY: 10 }
+        ],
+        xDates: ["7 Aug '26", "21 Aug '26", "28 Aug '26", "4 Sep '26", "11 Sep '26", "18 Sep '26", "25 Sep '26"]
+      },
+      deadlift: {
+        title: 'Conventional Deadlift',
+        bestVal: '220.0 kg',
+        bestEst: 'Est. 1RM: 232.8 kg (2 reps)',
+        trendVal: '+12%',
+        trendClass: 'trend-positive',
+        trendVol: 'Volume: 14200 vs 12680 kg',
+        yLabels: ['250', '200', '150', '100', '50', '0'],
+        lineD: 'M 15 55 L 92 48 L 169 42 L 246 38 L 323 30 L 400 22 L 477 15',
+        points: [
+          { x: 15, y: 55, val: '190', textY: 44 },
+          { x: 92, y: 48, val: '195', textY: 37 },
+          { x: 169, y: 42, val: '200', textY: 31 },
+          { x: 246, y: 38, val: '205', textY: 27 },
+          { x: 323, y: 30, val: '210', textY: 19 },
+          { x: 400, y: 22, val: '215', textY: 11 },
+          { x: 477, y: 15, val: '220', textY: 7 }
+        ],
+        xDates: ["7 Aug '26", "21 Aug '26", "28 Aug '26", "4 Sep '26", "11 Sep '26", "18 Sep '26", "25 Sep '26"]
+      }
+    };
+
+    appChartTabs.forEach(btn => {
+      btn.addEventListener('click', () => {
+        appChartTabs.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const ex = btn.dataset.exercise;
+        const d = appExerciseData[ex];
+        if (!d) return;
+
+        if (chartExTitle) chartExTitle.textContent = d.title;
+        if (chartBestVal) chartBestVal.textContent = d.bestVal;
+        if (chartBestEst) chartBestEst.textContent = d.bestEst;
+        if (chartTrendVal) {
+          chartTrendVal.textContent = d.trendVal;
+          chartTrendVal.className = 'chart-metric-card-val ' + d.trendClass;
+        }
+        if (chartTrendVol) chartTrendVol.textContent = d.trendVol;
+
+        if (chartYAxisLabels) {
+          chartYAxisLabels.innerHTML = d.yLabels.map(l => `<span>${l}</span>`).join('');
+        }
+
+        if (appChartLine) appChartLine.setAttribute('d', d.lineD);
+
+        if (appChartPoints) {
+          appChartPoints.innerHTML = d.points.map(p => `
+            <text x="${p.x}" y="${p.textY}" fill="#ffffff" font-size="9" font-family="var(--mono)" font-weight="600" text-anchor="middle">${p.val}</text>
+            <circle cx="${p.x}" cy="${p.y}" r="4" fill="#ffffff" stroke="#3b82f6" stroke-width="2" filter="url(#appDotGlow)"/>
+          `).join('');
+        }
+
+        if (chartXLabels) {
+          chartXLabels.innerHTML = d.xDates.map(date => `<span>${date}</span>`).join('');
+        }
+      });
+    });
   })();
   </script>
 </body>
