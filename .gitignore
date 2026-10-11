@@ -3,37 +3,62 @@ node_modules/
 .pnp
 .pnp.js
 
-# Expo
+# Expo & Prebuild Native Folders
 .expo/
 dist/
 web-build/
+android/
+ios/
 
-# Native
+# Standalone Packages & Binaries
+*.apk
+*.aab
+*.ipa
+
+# Native Keys & Keystores
 *.orig.*
 *.jks
+*.keystore
 *.p8
 *.p12
 *.key
+*.pem
 *.mobileprovision
 
-# Metro / Temp
+# Metro, Bundler & Logs
 .metro-health-check*
-npm-debug.*
-yarn-debug.*
-yarn-error.*
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
-# Testing
+# Testing & Coverage
 coverage/
+.nyc_output/
 
-# Agent / tooling scratch (session attachments, task locks/events)
-.reasonix/
-.manus/
+# IDE & Editor Artifacts
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
 
-# OS
+# OS Files
 .DS_Store
 Thumbs.db
+Desktop.ini
+ehthumbs.db
 
-# Brag / Video Generation Outputs
+# Agent / Tooling Scratch & Video Outputs
+.reasonix/
+.manus/
+.agents/
+scratch/
+temp/
+tmp/
 brag-output/
 brag-output-*/
 
