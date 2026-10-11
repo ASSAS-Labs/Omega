@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="assets/omega_hero.jpg" width="100%" alt="OMEGA — Local-First Progressive Overload System" />
+  <img src="assets/omega_hero_showcase.jpg" width="100%" alt="OMEGA — Local-First Progressive Overload System" />
 </div>
 
 <div align="center">
@@ -10,7 +10,7 @@
   <p>Zero cloud dependencies. Zero telemetry. 100% on-device embedded relational storage.</p>
 
   <p>
-    <a href="https://omega-tracker.vercel.app"><img src="https://img.shields.io/badge/Live_Showcase-omega--tracker.vercel.app-3b82f6?style=flat-square&logo=vercel&logoColor=white" alt="Live Website" /></a>
+    <a href="https://omega-assas4.vercel.app"><img src="https://img.shields.io/badge/Live_Showcase-omega--assas4.vercel.app-3b82f6?style=flat-square&logo=vercel&logoColor=white" alt="Live Website" /></a>
     <a href="https://github.com/ASSAS-Labs/Omega/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/ASSAS-Labs/Omega/ci.yml?branch=main&label=CI%20Pipeline&style=flat-square" alt="CI Pipeline" /></a>
     <a href="https://github.com/ASSAS-Labs/Omega/actions/workflows/build-apk.yml"><img src="https://img.shields.io/github/actions/workflow/status/ASSAS-Labs/Omega/build-apk.yml?label=Standalone%20APK&style=flat-square" alt="Build APK" /></a>
     <img src="https://img.shields.io/badge/Tests-290%20Passed-10b981?style=flat-square" alt="290 Tests Passed" />
@@ -19,7 +19,7 @@
   </p>
 
   <p>
-    <a href="https://omega-tracker.vercel.app"><strong>Explore Product Website</strong></a> &nbsp;&bull;&nbsp;
+    <a href="https://omega-assas4.vercel.app"><strong>Explore Product Website</strong></a> &nbsp;&bull;&nbsp;
     <a href="https://github.com/ASSAS-Labs/Omega/releases"><strong>Download Latest APK</strong></a> &nbsp;&bull;&nbsp;
     <a href="#system-architecture"><strong>System Architecture</strong></a> &nbsp;&bull;&nbsp;
     <a href="#quality-assurance--testing"><strong>Test Engineering</strong></a> &nbsp;&bull;&nbsp;
@@ -43,7 +43,7 @@ From high-frequency set logging and real-time benchmark lookups to Epley one-rep
 
 ### Live Web Experience
 
-Visit the interactive web presentation at [omega-tracker.vercel.app](https://omega-tracker.vercel.app) to explore the 3D liquid chrome interactive emblem, dynamic compliance calendar matrix, and live 1RM progression curve visualization.
+Visit the interactive web presentation at [omega-assas4.vercel.app](https://omega-assas4.vercel.app) to explore the 3D liquid chrome interactive emblem, dynamic compliance calendar matrix, and live 1RM progression curve visualization.
 
 ### Mobile Application Screens
 
