@@ -1,10 +1,6 @@
 <div align="center">
-  <img src="assets/omega_hero_showcase.jpg" width="100%" alt="OMEGA — Local-First Progressive Overload System" />
-</div>
-
-<div align="center">
   <br />
-  <img src="assets/appicon.jpg" width="88" height="88" style="border-radius: 20px;" alt="OMEGA Icon" />
+  <img src="assets/appicon.jpg" width="168" height="168" style="border-radius: 38px; display: block; margin: 0 auto;" alt="OMEGA Icon" />
   <h1>OMEGA</h1>
   <p><strong>Local-First Progressive Overload Engineering for Android</strong></p>
   <p>Zero cloud dependencies. Zero telemetry. 100% on-device embedded relational storage.</p>
@@ -45,35 +41,96 @@ From high-frequency set logging and real-time benchmark lookups to Epley one-rep
 
 Visit the interactive web presentation at [omega-assas4.vercel.app](https://omega-assas4.vercel.app) to explore the 3D liquid chrome interactive emblem, dynamic compliance calendar matrix, and live 1RM progression curve visualization.
 
-### Mobile Application Screens
+### Mobile Application Interface Showcase
 
-<div align="center">
-  <img src="assets/screenshots/01_dashboard.png" width="13.2%" alt="Dashboard Screen" />
-  &nbsp;
-  <img src="assets/screenshots/02_workout.png" width="13.2%" alt="Workout Screen" />
-  &nbsp;
-  <img src="assets/screenshots/03_exercises.png" width="13.2%" alt="Exercises Screen" />
-  &nbsp;
-  <img src="assets/screenshots/04_analytics.png" width="13.2%" alt="Analytics Screen" />
-  &nbsp;
-  <img src="assets/screenshots/05_settings.png" width="13.2%" alt="Settings Screen" />
-  &nbsp;
-  <img src="assets/screenshots/06_split.png" width="13.2%" alt="Routine Split Screen" />
-  &nbsp;
-  <img src="assets/screenshots/07_streaks.png" width="13.2%" alt="Streak Leaderboard Screen" />
-</div>
+<table>
+  <thead>
+    <tr>
+      <th width="50%" align="center"><strong>01 · Daily Discipline & Consistency</strong></th>
+      <th width="50%" align="center"><strong>02 · Active Workout Builder</strong></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td align="center">
+        <br />
+        <img src="assets/screenshots/01_dashboard.png" width="300" style="border-radius: 22px;" alt="Dashboard Screen" />
+        <br /><br />
+        <strong>Monday-First Compliance Matrix</strong>
+        <p>Full-month adherence calendar with per-day status markers (Logged, Missed, Rest, Upcoming). One-tap quick launch into today's planned routine with active streak counter.</p>
+      </td>
+      <td align="center">
+        <br />
+        <img src="assets/screenshots/02_workout.png" width="300" style="border-radius: 22px;" alt="Workout Screen" />
+        <br /><br />
+        <strong>Routine Split & Day Selection</strong>
+        <p>Organized daily movement allocations with target muscle group breakdowns. Real-time set counting, benchmark lookups, and drag-to-reorder exercise sequencing.</p>
+      </td>
+    </tr>
+  </tbody>
+</table>
 
-<br />
+<table>
+  <thead>
+    <tr>
+      <th width="50%" align="center"><strong>03 · Movement Library</strong></th>
+      <th width="50%" align="center"><strong>04 · Progression Analytics</strong></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td align="center">
+        <br />
+        <img src="assets/screenshots/03_exercises.png" width="300" style="border-radius: 22px;" alt="Exercises Screen" />
+        <br /><br />
+        <strong>Muscle-Partitioned Catalog</strong>
+        <p>Searchable movement pool built with FlashList 2.0 recycled cells. Instant filtering across Chest, Back, Legs, Shoulders, and Arms, plus full custom exercise creation.</p>
+      </td>
+      <td align="center">
+        <br />
+        <img src="assets/screenshots/04_analytics.png" width="300" style="border-radius: 22px;" alt="Analytics Screen" />
+        <br /><br />
+        <strong>Estimated 1RM Progression & Headroom</strong>
+        <p>Dynamic Epley strength curves with automatic chart headroom bounds. Session, weekly, and monthly aggregation toggles with peak strength benchmarks.</p>
+      </td>
+    </tr>
+  </tbody>
+</table>
 
-| Interface Module | Engineering Implementation | User & Product Impact |
-|---|---|---|
-| **Dashboard** | Monday-first calendar grid with multi-state day markers (Logged, Missed, Rest, Upcoming) and active streak indicator. | Instant visual feedback on training consistency; zero friction launch into today's planned session. |
-| **Workout Logger** | Midpoint-hysteresis drag-to-reorder list, real-time benchmark querying, set completion status toggling. | Eliminates guesswork between sets by comparing current load against previous personal bests. |
-| **Exercise Library** | FlashList 2.0 recycled cells partitioned by muscle group; supports runtime creation of custom exercises. | Sub-millisecond scroll frame rates with zero layout stutter, even over exhaustive movement pools. |
-| **Progression Analytics** | Spline-rendered 1RM curves and volume bar trends with dynamic headroom calculation and date bucketing. | Objective proof of progressive overload; eliminates visual clipping on rapid strength spikes. |
-| **Settings & Storage** | Instant KG/LBS dual-unit conversion with round-trip parity, configurable rest timer preferences, atomic JSON backup export. | True data sovereignty; one-tap complete database portability without vendor lock-in. |
-| **Routine Split Setup** | Mon-Sun multi-group assignment matrix with badge feedback and automatic routine synchronization. | Adapts to any split discipline (PPL, Upper/Lower, Arnold, Bro split, or custom hybrid cycles). |
-| **Streak History** | Top 5 all-time unbroken streak leaderboard driven by split-aware persistence algorithms. | Enforces scheduled rest discipline without breaking unbroken workout streaks. |
+<table>
+  <thead>
+    <tr>
+      <th width="33.3%" align="center"><strong>05 · Split Architecture</strong></th>
+      <th width="33.3%" align="center"><strong>06 · Streak Leaderboard</strong></th>
+      <th width="33.3%" align="center"><strong>07 · Data Portability</strong></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td align="center">
+        <br />
+        <img src="assets/screenshots/06_split.png" width="230" style="border-radius: 20px;" alt="Routine Split Screen" />
+        <br /><br />
+        <strong>7-Day Target Matrix</strong>
+        <p>Configure muscle groups per weekday with live badges and routine sync.</p>
+      </td>
+      <td align="center">
+        <br />
+        <img src="assets/screenshots/07_streaks.png" width="230" style="border-radius: 20px;" alt="Streak History Screen" />
+        <br /><br />
+        <strong>All-Time Consistency</strong>
+        <p>Top 5 unbroken training streaks with split-aware rest day persistence rules.</p>
+      </td>
+      <td align="center">
+        <br />
+        <img src="assets/screenshots/05_settings.png" width="230" style="border-radius: 20px;" alt="Settings Screen" />
+        <br /><br />
+        <strong>Local Database Export</strong>
+        <p>KG/LBS unit toggle, rest timer presets, and atomic JSON database export/import.</p>
+      </td>
+    </tr>
+  </tbody>
+</table>
 
 ---
 
