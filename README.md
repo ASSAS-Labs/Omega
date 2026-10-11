@@ -8,7 +8,7 @@
   <p>
     <a href="https://omega-assas4.vercel.app"><img src="https://img.shields.io/badge/Live_Showcase-omega--assas4.vercel.app-3b82f6?style=flat-square&logo=vercel&logoColor=white" alt="Live Website" /></a>
     <a href="https://github.com/ASSAS-Labs/Omega/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/ASSAS-Labs/Omega/ci.yml?branch=main&label=CI%20Pipeline&style=flat-square" alt="CI Pipeline" /></a>
-    <a href="https://github.com/ASSAS-Labs/Omega/actions/workflows/build-apk.yml"><img src="https://img.shields.io/github/actions/workflow/status/ASSAS-Labs/Omega/build-apk.yml?label=Standalone%20APK&style=flat-square" alt="Build APK" /></a>
+    <a href="https://github.com/ASSAS-Labs/Omega/releases/latest/download/app-release.apk"><img src="https://img.shields.io/github/actions/workflow/status/ASSAS-Labs/Omega/build-apk.yml?label=Standalone%20APK&style=flat-square" alt="Build APK" /></a>
     <img src="https://img.shields.io/badge/Tests-290%20Passed-10b981?style=flat-square" alt="290 Tests Passed" />
     <img src="https://img.shields.io/badge/TypeScript-Strict-3b82f6?style=flat-square" alt="TypeScript Strict" />
     <a href="LICENSE"><img src="https://img.shields.io/badge/License-PolyForm%20Noncommercial-6b7280?style=flat-square" alt="License" /></a>
@@ -16,7 +16,7 @@
 
   <p>
     <a href="https://omega-assas4.vercel.app"><strong>Explore Product Website</strong></a> &nbsp;&bull;&nbsp;
-    <a href="https://github.com/ASSAS-Labs/Omega/releases"><strong>Download Latest APK</strong></a> &nbsp;&bull;&nbsp;
+    <a href="https://github.com/ASSAS-Labs/Omega/releases/latest/download/app-release.apk"><strong>Download Latest APK</strong></a> &nbsp;&bull;&nbsp;
     <a href="#system-architecture"><strong>System Architecture</strong></a> &nbsp;&bull;&nbsp;
     <a href="#quality-assurance--testing"><strong>Test Engineering</strong></a> &nbsp;&bull;&nbsp;
     <a href="#quickstart"><strong>Quickstart</strong></a>
