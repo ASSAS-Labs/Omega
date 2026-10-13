@@ -30,6 +30,10 @@ export interface WorkoutDraft {
   version: number;
   /** Epoch ms of the last successful write, used to expire stale drafts. */
   updatedAt: number;
+  /** Session token / primary key allocated upon initiation for idempotent saves. */
+  logId?: string;
+  /** Generation counter captured when the draft snapshot was created. */
+  generation?: number;
   date: string;
   day: DayOfWeek;
   dayName?: string;
@@ -52,6 +56,11 @@ export type WorkoutDraftInput = Omit<WorkoutDraft, 'version' | 'updatedAt'> &
  * correct only while the stray write landed before the retry.
  */
 let draftGeneration = 0;
+
+/** Returns the current draft generation counter. */
+export function getCurrentDraftGeneration(): number {
+  return draftGeneration;
+}
 
 /**
  * Serializes every storage operation. Saves and clears are queued behind each
@@ -161,6 +170,8 @@ function parseDraft(raw: unknown): WorkoutDraft | null {
   return {
     version: typeof raw.version === 'number' ? raw.version : DRAFT_VERSION,
     updatedAt: typeof raw.updatedAt === 'number' ? raw.updatedAt : 0,
+    logId: typeof raw.logId === 'string' && raw.logId.length > 0 ? raw.logId : undefined,
+    generation: typeof raw.generation === 'number' ? raw.generation : undefined,
     date: raw.date,
     day: raw.day as DayOfWeek,
     dayName: typeof raw.dayName === 'string' ? raw.dayName : undefined,
@@ -173,22 +184,34 @@ function parseDraft(raw: unknown): WorkoutDraft | null {
  * Persists an in-progress logging session so it survives app restarts /
  * crashes. Auto-saved by ActiveWorkoutScreen on every change (debounced).
  *
- * Storage failures propagate to the caller: a draft that could not be written
- * is exactly what the caller needs to know about, since the workout it stands
- * for is otherwise unrecoverable.
+ * @param draft - Payload to persist.
+ * @param snapshotGeneration - Optional generation captured when debounce started.
+ * Trailing writes scheduled before clearWorkoutDraft() are discarded.
  */
-export function saveWorkoutDraft(draft: WorkoutDraftInput): Promise<void> {
+export function saveWorkoutDraft(
+  draft: WorkoutDraftInput,
+  snapshotGeneration?: number
+): Promise<void> {
   const currentGeneration = draftGeneration;
+  const targetGeneration = snapshotGeneration ?? draft.generation ?? currentGeneration;
+
+  // If a clearWorkoutDraft() has occurred since the write/snapshot was scheduled, discard immediately
+  if (targetGeneration !== draftGeneration) {
+    return Promise.resolve();
+  }
+
   const payload: WorkoutDraft = {
     ...draft,
     version: DRAFT_VERSION,
     updatedAt: Date.now(),
+    generation: draftGeneration,
   };
 
   return enqueueTask(async () => {
-    // Discarded since this save was requested — the session is over and the
-    // draft must stay deleted.
-    if (currentGeneration !== draftGeneration) return;
+    // Discarded if clearWorkoutDraft() ran since this save was requested
+    if (targetGeneration !== draftGeneration || currentGeneration !== draftGeneration) {
+      return;
+    }
     await AsyncStorage.setItem(DRAFT_KEY, JSON.stringify(payload));
   });
 }

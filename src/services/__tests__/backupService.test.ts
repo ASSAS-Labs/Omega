@@ -334,6 +334,41 @@ describe('backupService', () => {
       expect(await db.getAllExercises()).toHaveLength(2);
       expect(await db.getWorkoutLogForDate('2026-09-01')).not.toBeNull();
     });
+
+    it('restores older v1 backups without is_archived with is_archived = 0', async () => {
+      const db = loadDbModule();
+      const backup = loadBackupModule();
+
+      writeFile(
+        'file:///cache/v1_backup.json',
+        JSON.stringify({
+          app: 'OMEGA',
+          version: 1,
+          exportedAt: new Date().toISOString(),
+          data: {
+            exercises: [
+              {
+                id: 'ex_legacy',
+                name: 'Legacy Exercise',
+                muscleGroup: 'Chest',
+                createdAt: new Date().toISOString(),
+                // is_archived intentionally omitted (v1 schema)
+              },
+            ],
+            day_templates: [],
+            workout_logs: [],
+            workout_sets: [],
+          },
+        })
+      );
+
+      await backup.importBackup('file:///cache/v1_backup.json');
+
+      const all = await db.getAllExercises();
+      expect(all).toHaveLength(1);
+      expect(all[0].id).toBe('ex_legacy');
+      expect(all[0].name).toBe('Legacy Exercise');
+    });
   });
 
   describe('picker integration', () => {

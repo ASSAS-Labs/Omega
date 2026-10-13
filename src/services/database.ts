@@ -22,6 +22,11 @@ let idSequence = 0;
 const createId = (prefix: string): string =>
   `${prefix}${Date.now()}_${idSequence++}_${Math.random().toString(36).substring(2, 7)}`;
 
+/** Pre-allocates a unique session logId for idempotent workout logging. */
+export function createWorkoutLogId(): string {
+  return createId('wl_');
+}
+
 /**
  * Thrown when an exercise name is already taken. Callers detect the collision
  * with `instanceof` instead of matching a magic error message, so a future
@@ -127,23 +132,18 @@ export async function getDB(): Promise<SQLite.SQLiteDatabase> {
 }
 
 /**
- * Drops a handle whose initialization failed, so the next `getDB` opens a new
- * one instead of handing every caller the same broken connection.
- *
- * Only schema setup calls this. A failed migration can leave the connection
- * with `foreign_keys` off, a transaction still open, or a half-renamed table —
- * none of which heal on their own, and all of which would surface later as
- * `SQLITE_BUSY` on unrelated queries. Retrying on a fresh handle is the only
- * way back to a working data layer.
+ * Drops a handle whose initialization or migration failed.
+ * Explicitly executes await db.closeAsync() on the native handle BEFORE
+ * nulling or resetting the cached DB connection promise to avoid native handle
+ * and write-lock leaks.
  */
-function invalidateConnection(db: SQLite.SQLiteDatabase) {
-  if (!dbPromise) return;
-  const stale = dbPromise;
+async function closeAndInvalidateConnection(db: SQLite.SQLiteDatabase): Promise<void> {
+  try {
+    await db.closeAsync();
+  } catch {
+    // Best-effort handle close
+  }
   dbPromise = null;
-  // Best-effort close; the promise is already cleared either way.
-  void stale
-    .then((handle) => (handle === db ? handle.closeAsync() : undefined))
-    .catch(() => {});
 }
 
 /**
@@ -236,8 +236,9 @@ async function migrateToSoftDelete(db: SQLite.SQLiteDatabase) {
     }
   } catch (err) {
     await rollbackQuietly(db);
+    await reassertForeignKeys(db);
     console.error('Migration failed (soft delete column):', err);
-    invalidateConnection(db);
+    await closeAndInvalidateConnection(db);
     throw err;
   } finally {
     await reassertForeignKeys(db);
@@ -247,7 +248,8 @@ async function migrateToSoftDelete(db: SQLite.SQLiteDatabase) {
 /**
  * Creates the relational indexes backing the foreign-key cascades and the
  * analytics joins (`workout_sets.exercise_id`, `workout_sets.workout_log_id`,
- * `workout_logs.date`, `exercises.is_archived`).
+ * `workout_sets(exercise_id, workout_log_id)`, `workout_logs.date`,
+ * `exercises.name WHERE is_archived = 0`).
  *
  * Runs on every launch: `IF NOT EXISTS` is free when they are already there,
  * and this is what lets a launch that crashed after the version stamp — but
@@ -256,14 +258,18 @@ async function migrateToSoftDelete(db: SQLite.SQLiteDatabase) {
 async function createIndexes(db: SQLite.SQLiteDatabase) {
   try {
     await db.execAsync(`
+      DROP INDEX IF EXISTS idx_exercises_archived;
       CREATE INDEX IF NOT EXISTS idx_workout_sets_log_id ON workout_sets(workout_log_id);
       CREATE INDEX IF NOT EXISTS idx_workout_sets_exercise_id ON workout_sets(exercise_id);
+      CREATE INDEX IF NOT EXISTS idx_workout_sets_composite ON workout_sets(exercise_id, workout_log_id);
       CREATE INDEX IF NOT EXISTS idx_workout_logs_date ON workout_logs(date);
-      CREATE INDEX IF NOT EXISTS idx_exercises_archived ON exercises(is_archived);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_exercises_active_name ON exercises(name COLLATE NOCASE) WHERE is_archived = 0;
     `);
   } catch (err) {
+    await rollbackQuietly(db);
+    await reassertForeignKeys(db);
     console.error('Failed to create schema indexes:', err);
-    invalidateConnection(db);
+    await closeAndInvalidateConnection(db);
     throw err;
   }
 }
@@ -282,7 +288,7 @@ async function reassertForeignKeys(db: SQLite.SQLiteDatabase) {
   try {
     await db.execAsync('PRAGMA foreign_keys = ON;');
   } catch {
-    // The handle is already broken; `invalidateConnection` retires it.
+    // The handle is already broken; `closeAndInvalidateConnection` retires it.
   }
 }
 
@@ -299,8 +305,10 @@ async function seedDefaultMuscleGroups(db: SQLite.SQLiteDatabase) {
       }
     });
   } catch (err) {
+    await rollbackQuietly(db);
+    await reassertForeignKeys(db);
     console.error('Failed to seed default muscle groups:', err);
-    invalidateConnection(db);
+    await closeAndInvalidateConnection(db);
     throw err;
   }
 }
@@ -349,7 +357,7 @@ async function createBaseSchema(db: SQLite.SQLiteDatabase) {
 
     CREATE TABLE IF NOT EXISTS exercises (
       id TEXT PRIMARY KEY,
-      name TEXT UNIQUE NOT NULL,
+      name TEXT NOT NULL,
       muscleGroup TEXT,
       createdAt TEXT,
       is_archived INTEGER NOT NULL DEFAULT 0
@@ -520,11 +528,13 @@ async function runSchemaRepair(
     // would reject them while their parent table is still named differently.
     await db.execAsync('PRAGMA foreign_keys = OFF;');
     await repair();
+    await db.execAsync('PRAGMA foreign_key_check;');
     await db.execAsync('COMMIT;');
   } catch (err) {
     await rollbackQuietly(db);
+    await reassertForeignKeys(db);
     console.error(`Schema repair failed (${label}):`, err);
-    invalidateConnection(db);
+    await closeAndInvalidateConnection(db);
     throw err;
   } finally {
     await reassertForeignKeys(db);
@@ -556,25 +566,37 @@ export async function getAllExercises(): Promise<Exercise[]> {
 }
 
 // Adds a user-created exercise to the global library.
-// Throws an ExerciseAlreadyExistsError when the name is already taken. Archived
-// exercises keep their names too (`name` is UNIQUE across the table), so the
-// error distinguishes "already in the library" from "held by an archived row".
+// If an archived exercise with matching name already exists, re-activates it and updates muscleGroup.
+// Throws ExerciseAlreadyExistsError only if an active exercise already exists with this name.
 export async function addExercise(name: string, muscleGroupName: string): Promise<Exercise> {
   const db = await getDB();
   const trimmed = name.trim();
 
-  const existing = await db.getFirstAsync<{ id: string; is_archived: number }>(
-    'SELECT id, is_archived FROM exercises WHERE name = ? COLLATE NOCASE;',
+  const existing = await db.getFirstAsync<{ id: string; is_archived: number; muscleGroup: string | null; createdAt: string | null }>(
+    'SELECT id, is_archived, muscleGroup, createdAt FROM exercises WHERE name = ? COLLATE NOCASE;',
     [trimmed]
   );
   if (existing) {
-    throw new ExerciseAlreadyExistsError(trimmed, { archived: existing.is_archived === 1 });
+    if (existing.is_archived === 1) {
+      // Re-activate the archived exercise cleanly
+      await db.runAsync(
+        'UPDATE exercises SET is_archived = 0, muscleGroup = ? WHERE id = ?;',
+        [muscleGroupName || null, existing.id]
+      );
+      return {
+        id: existing.id,
+        name: trimmed,
+        muscleGroup: muscleGroupName || undefined,
+        createdAt: existing.createdAt ?? undefined,
+      };
+    }
+    throw new ExerciseAlreadyExistsError(trimmed, { archived: false });
   }
 
   const id = createId('ex_');
   const createdAt = new Date().toISOString();
   await db.runAsync(
-    'INSERT INTO exercises (id, name, muscleGroup, createdAt) VALUES (?, ?, ?, ?);',
+    'INSERT INTO exercises (id, name, muscleGroup, createdAt, is_archived) VALUES (?, ?, ?, ?, 0);',
     [id, trimmed, muscleGroupName || null, createdAt]
   );
   return { id, name: trimmed, muscleGroup: muscleGroupName || undefined, createdAt };
@@ -798,6 +820,15 @@ export async function getDayTemplateCounts(): Promise<Record<DayOfWeek, number>>
 }
 
 /**
+ * Deletes a specific workout log session by primary key ID, together with its sets
+ * (ON DELETE CASCADE).
+ */
+export async function deleteWorkoutLog(logId: number | string): Promise<void> {
+  const db = await getDB();
+  await db.runAsync('DELETE FROM workout_logs WHERE id = ?;', [String(logId)]);
+}
+
+/**
  * Deletes the session currently shown for a day — the newest one, the same
  * record `getWorkoutLogForDate` reads — together with its sets (ON DELETE
  * CASCADE). Earlier sessions logged on the same date are left alone, so
@@ -808,7 +839,7 @@ export async function deleteWorkoutLogForDate(dateStr: string): Promise<void> {
   const latest = await fetchLatestLogForDate(db, dateStr);
   if (!latest) return;
 
-  await db.runAsync('DELETE FROM workout_logs WHERE id = ?;', [latest.id]);
+  await deleteWorkoutLog(latest.id);
 }
 
 // All distinct days with a completed workout (YYYY-MM-DD, ascending).
@@ -880,29 +911,35 @@ export async function saveWorkoutLog(
 ): Promise<string> {
   const db = await getDB();
 
-  // Validate the whole payload before opening a write transaction. Invalid
-  // input throws (`InvalidSetError` / `UnknownExerciseError`) instead of being
-  // dropped on the floor — a session that cannot be stored in full must not
-  // come back as a successful log id with sets missing.
-  sets.forEach((set, index) => {
+  // Distinguish untouched blank set rows from explicitly invalid sets
+  const cleanedSets: { exerciseId: string; setNumber: number; weight: number; reps: number }[] = [];
+
+  for (let index = 0; index < sets.length; index++) {
+    const set = sets[index];
     if (!set.exerciseId) {
       throw new InvalidSetError(index, 'missing exercise id');
     }
     if (!Number.isFinite(set.weight) || set.weight < 0) {
       throw new InvalidSetError(index, 'weight must be a finite number >= 0');
     }
-    if (!Number.isInteger(set.reps) || set.reps <= 0) {
-      throw new InvalidSetError(index, 'reps must be a positive integer');
+    // Untouched blank set: 0 weight and 0 (or absent/negative) reps -> cleanly strip
+    if (set.weight === 0 && (!Number.isInteger(set.reps) || set.reps <= 0)) {
+      continue;
+    }
+    // Positive weight combined with invalid/zero/negative reps -> throw InvalidSetError
+    if (set.weight > 0 && (!Number.isInteger(set.reps) || set.reps <= 0)) {
+      throw new InvalidSetError(index, 'positive weight requires valid reps > 0');
     }
     if (!Number.isInteger(set.setNumber) || set.setNumber <= 0) {
       throw new InvalidSetError(index, 'set number must be a positive integer');
     }
-  });
+    cleanedSets.push(set);
+  }
 
   // Archived exercises still accept sets: history has to keep the movements it
   // was recorded with. Only an id that is not in the library at all is a real
   // error — the caller is holding a reference the database cannot resolve.
-  const requestedIds = Array.from(new Set(sets.map((set) => set.exerciseId)));
+  const requestedIds = Array.from(new Set(cleanedSets.map((set) => set.exerciseId)));
   const knownIds = new Set<string>();
   for (let i = 0; i < requestedIds.length; i += 100) {
     const chunk = requestedIds.slice(i, i + 100);
@@ -918,21 +955,22 @@ export async function saveWorkoutLog(
   const targetLogId = logId ?? createId('wl_');
 
   await db.withTransactionAsync(async () => {
-    if (logId) {
-      // Amend the named session: its own sets are replaced, its id is kept
-      await db.runAsync('DELETE FROM workout_sets WHERE workout_log_id = ?;', [logId]);
-      await db.runAsync(
-        'UPDATE workout_logs SET date = ?, day_of_week = ?, notes = ?, completed = 1 WHERE id = ?;',
-        [date, dayOfWeek, notes || '', logId]
-      );
-    } else {
-      await db.runAsync(
-        'INSERT INTO workout_logs (id, date, day_of_week, notes, completed) VALUES (?, ?, ?, ?, 1);',
-        [targetLogId, date, dayOfWeek, notes || '']
-      );
-    }
+    // Atomic upsert: saves or re-saves the workout_log session idempotently
+    await db.runAsync(
+      `INSERT INTO workout_logs (id, date, day_of_week, notes, completed)
+       VALUES (?, ?, ?, ?, 1)
+       ON CONFLICT(id) DO UPDATE SET
+         date = excluded.date,
+         day_of_week = excluded.day_of_week,
+         notes = excluded.notes,
+         completed = 1;`,
+      [targetLogId, date, dayOfWeek, notes || '']
+    );
 
-    for (const s of sets) {
+    // Delete existing sets for this targetLogId so re-saves after crashes are idempotent
+    await db.runAsync('DELETE FROM workout_sets WHERE workout_log_id = ?;', [targetLogId]);
+
+    for (const s of cleanedSets) {
       await db.runAsync(
         'INSERT INTO workout_sets (id, workout_log_id, exercise_id, set_number, weight, reps) VALUES (?, ?, ?, ?, ?, ?);',
         [createId('ws_'), targetLogId, s.exerciseId, s.setNumber, s.weight, s.reps]

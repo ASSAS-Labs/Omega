@@ -90,8 +90,9 @@ describe('database service', () => {
         expect.arrayContaining([
           'idx_workout_sets_log_id',
           'idx_workout_sets_exercise_id',
+          'idx_workout_sets_composite',
           'idx_workout_logs_date',
-          'idx_exercises_archived',
+          'idx_exercises_active_name',
         ])
       );
     });
@@ -575,6 +576,35 @@ describe('database service', () => {
       expect((await db.getWorkoutLogForDate('2026-09-01'))?.sets).toHaveLength(1);
     });
 
+    it('cleanly strips untouched blank set rows (0 weight and 0 reps)', async () => {
+      const { db } = await freshDatabase();
+      const bench = await db.addExercise('Bench Press', 'Chest');
+
+      await db.saveWorkoutLog('2026-09-01', 'Tuesday', '', [
+        { exerciseId: bench.id, setNumber: 1, weight: 80, reps: 8 },
+        { exerciseId: bench.id, setNumber: 2, weight: 0, reps: 0 },
+      ]);
+
+      const log = await db.getWorkoutLogForDate('2026-09-01');
+      expect(log?.sets).toHaveLength(1);
+      expect(log?.sets[0].weight).toBe(80);
+      expect(log?.sets[0].reps).toBe(8);
+    });
+
+    it('preserves valid bodyweight sets with 0 weight and positive reps', async () => {
+      const { db } = await freshDatabase();
+      const pullups = await db.addExercise('Pull-ups', 'Back');
+
+      await db.saveWorkoutLog('2026-09-01', 'Tuesday', '', [
+        { exerciseId: pullups.id, setNumber: 1, weight: 0, reps: 10 },
+      ]);
+
+      const log = await db.getWorkoutLogForDate('2026-09-01');
+      expect(log?.sets).toHaveLength(1);
+      expect(log?.sets[0].weight).toBe(0);
+      expect(log?.sets[0].reps).toBe(10);
+    });
+
     it('rejects a set for an exercise the library does not have', async () => {
       const { db } = await freshDatabase();
       const bench = await db.addExercise('Bench Press', 'Chest');
@@ -692,6 +722,51 @@ describe('database service', () => {
       expect(remaining?.notes).toBe('morning');
       expect(remaining?.sets).toHaveLength(1);
       expect(evening).not.toBe(morning);
+    });
+
+    it('deletes a workout log session directly by logId', async () => {
+      const { db } = await freshDatabase();
+      const bench = await db.addExercise('Bench Press', 'Chest');
+      const logId = await db.saveWorkoutLog('2026-09-01', 'Tuesday', '', [
+        { exerciseId: bench.id, setNumber: 1, weight: 80, reps: 8 },
+      ]);
+
+      await db.deleteWorkoutLog(logId);
+
+      expect(await db.getWorkoutLogForDate('2026-09-01')).toBeNull();
+      const sets = await (await db.getDB()).getAllAsync<{ id: string }>('SELECT id FROM workout_sets;');
+      expect(sets).toHaveLength(0);
+    });
+
+    it('saves idempotently with pre-allocated logId without duplicating logs or sets', async () => {
+      const { db } = await freshDatabase();
+      const bench = await db.addExercise('Bench Press', 'Chest');
+      const preAllocatedId = db.createWorkoutLogId();
+
+      const first = await db.saveWorkoutLog(
+        '2026-09-01',
+        'Tuesday',
+        'initial',
+        [{ exerciseId: bench.id, setNumber: 1, weight: 80, reps: 8 }],
+        preAllocatedId
+      );
+      expect(first).toBe(preAllocatedId);
+
+      // Retry (e.g. app crashed after commit but before draft cleared)
+      const second = await db.saveWorkoutLog(
+        '2026-09-01',
+        'Tuesday',
+        'initial',
+        [{ exerciseId: bench.id, setNumber: 1, weight: 80, reps: 8 }],
+        preAllocatedId
+      );
+      expect(second).toBe(preAllocatedId);
+
+      const logs = await (await db.getDB()).getAllAsync<{ id: string }>('SELECT id FROM workout_logs;');
+      expect(logs).toHaveLength(1);
+
+      const sets = await (await db.getDB()).getAllAsync<{ id: string }>('SELECT id FROM workout_sets;');
+      expect(sets).toHaveLength(1);
     });
 
     it('lists distinct completed workout days for streak analytics', async () => {
@@ -990,18 +1065,18 @@ describe('database service', () => {
       expect(await db.getAllExercises()).toHaveLength(1);
     });
 
-    it('reports that an archived exercise still holds its name', async () => {
+    it('re-activates an archived exercise when re-created with the same name', async () => {
       const { db } = await freshDatabase();
       const original = await db.addExercise('Bench Press', 'Chest');
       await db.deleteExercise(original.id);
+      expect(await db.getAllExercises()).toHaveLength(0);
 
-      // `name` is UNIQUE across the whole table, archived rows included, so the
-      // row can be resurrected by renaming rather than re-added — the error
-      // says which of the two conflicts this is.
-      const conflict = await db.addExercise('Bench Press', 'Chest').catch((err) => err);
-      expect(conflict).toBeInstanceOf(db.ExerciseAlreadyExistsError);
-      expect(conflict.archived).toBe(true);
-      expect((await db.getAllExercises())).toEqual([]);
+      const reactivated = await db.addExercise('Bench Press', 'Chest');
+      expect(reactivated.id).toBe(original.id);
+      expect(reactivated.name).toBe('Bench Press');
+      const all = await db.getAllExercises();
+      expect(all).toHaveLength(1);
+      expect(all[0].id).toBe(original.id);
     });
 
     it('updates an exercise name and muscle group', async () => {

@@ -119,11 +119,13 @@ export async function importBackup(uri: string): Promise<number> {
 
     // Restore in FK-safe order (parents first)
     for (const row of payload.data.exercises) {
+      const isArchived =
+        row.is_archived === 1 || (row.is_archived as unknown) === true ? 1 : 0;
       await db.runAsync(
         'INSERT OR REPLACE INTO exercises (id, name, muscleGroup, createdAt, is_archived) VALUES (?, ?, ?, ?, ?);',
         // Backups written before soft deletion existed restore as active
-        // exercises rather than as archived ones.
-        [row.id, row.name, row.muscleGroup ?? null, row.createdAt ?? null, row.is_archived ?? 0]
+        // exercises (is_archived = 0) rather than as archived ones.
+        [row.id, row.name, row.muscleGroup ?? null, row.createdAt ?? null, isArchived]
       );
     }
     for (const row of payload.data.day_templates) {

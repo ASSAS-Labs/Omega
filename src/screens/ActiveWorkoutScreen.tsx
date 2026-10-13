@@ -25,6 +25,7 @@ import { Exercise, WorkoutStackParamList } from '../types';
 import * as db from '../services/database';
 import {
   clearWorkoutDraft,
+  getCurrentDraftGeneration,
   getWorkoutDraft,
   saveWorkoutDraft,
 } from '../services/workoutDraftService';
@@ -145,9 +146,8 @@ export default function ActiveWorkoutScreen() {
   const draftStartedAtRef = useRef(Date.now());
   const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Session already on disk for this date (if any). Kept so "Finish & Save"
-  // amends that record by primary key instead of appending a second session
-  // for the same day — see `saveWorkoutLog`.
+  // Session token / primary key allocated upon initiation for idempotent saves
+  const sessionLogIdRef = useRef<string>(db.createWorkoutLogId());
   const existingLogIdRef = useRef<string | undefined>(undefined);
 
   // Set once the session has been finalized ("Finish & Save Workout") so the
@@ -222,23 +222,29 @@ export default function ActiveWorkoutScreen() {
   // Crash recovery: auto-save the logging session (debounced) as the user types.
   // Only persists once at least one set contains actual input.
   useEffect(() => {
-    if (isTemplateMode) return;
+    if (isTemplateMode || finishedRef.current) return;
     const hasInput = exerciseLogs.some((ex) =>
       ex.sets.some((s) => s.weight.trim() !== '' || s.reps.trim() !== '')
     );
     if (!hasInput) return;
     if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+    const snapshotGeneration = getCurrentDraftGeneration();
     draftTimerRef.current = setTimeout(() => {
+      if (finishedRef.current) return;
       saveWorkoutDraft({
+        logId: sessionLogIdRef.current,
         date,
         day,
         dayName: route.params.dayName,
         startedAt: draftStartedAtRef.current,
         exerciseLogs,
-      });
+      }, snapshotGeneration);
     }, 500);
     return () => {
-      if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+      if (draftTimerRef.current) {
+        clearTimeout(draftTimerRef.current);
+        draftTimerRef.current = null;
+      }
     };
   }, [exerciseLogs, isTemplateMode, date, day, route.params.dayName]);
 
@@ -257,12 +263,13 @@ export default function ActiveWorkoutScreen() {
     );
     if (!hasInput) return;
     saveWorkoutDraft({
+      logId: sessionLogIdRef.current,
       date,
       day,
       dayName: route.params.dayName,
       startedAt: draftStartedAtRef.current,
       exerciseLogs: logs,
-    });
+    }, getCurrentDraftGeneration());
   }, [date, day, isTemplateMode, route.params.dayName]);
 
   // Navigating back (without "Finish & Save") must keep the draft intact so
@@ -332,6 +339,8 @@ export default function ActiveWorkoutScreen() {
       const draft = await getWorkoutDraft();
       if (draft) {
         draftStartedAtRef.current = draft.startedAt;
+        sessionLogIdRef.current = draft.logId ?? db.createWorkoutLogId();
+        existingLogIdRef.current = sessionLogIdRef.current;
         setExerciseLogs(
           draft.exerciseLogs.map((d) => ({
             exercise: {
@@ -355,6 +364,7 @@ export default function ActiveWorkoutScreen() {
     // 1. Check if workout is already logged for this date
     const existingLog = await db.getWorkoutLogForDate(date);
     existingLogIdRef.current = existingLog?.id;
+    sessionLogIdRef.current = existingLog?.id ?? db.createWorkoutLogId();
     const template = await db.getDayTemplate(day);
 
     const assignedMgIds = weeklySplit[day] || [];
@@ -738,23 +748,28 @@ export default function ActiveWorkoutScreen() {
   };
 
   const handleFinishWorkout = async () => {
-    // Format sets payload
+    // Format sets payload: cleanly strip untouched blank set rows
     const setsToSave: { exerciseId: string; setNumber: number; weight: number; reps: number }[] = [];
 
     for (const exLog of exerciseLogs) {
       for (const s of exLog.sets) {
-        // Input is in the active unit; convert to canonical kg for storage
-        const weightNum = toKg(parseFloat(s.weight) || 0, weightUnit);
-        const repsNum = parseInt(s.reps, 10) || 0;
+        const weightTrim = s.weight.trim();
+        const repsTrim = s.reps.trim();
 
-        if (repsNum > 0) {
-          setsToSave.push({
-            exerciseId: exLog.exercise.id,
-            setNumber: s.setNumber,
-            weight: weightNum,
-            reps: repsNum,
-          });
+        // Untouched blank set row: cleanly strip it
+        if (weightTrim === '' && repsTrim === '') {
+          continue;
         }
+
+        const weightNum = toKg(parseFloat(weightTrim) || 0, weightUnit);
+        const repsNum = parseInt(repsTrim, 10);
+
+        setsToSave.push({
+          exerciseId: exLog.exercise.id,
+          setNumber: s.setNumber,
+          weight: weightNum,
+          reps: isNaN(repsNum) ? 0 : repsNum,
+        });
       }
     }
 
@@ -763,31 +778,25 @@ export default function ActiveWorkoutScreen() {
       return;
     }
 
+    // Cancel debounce timer and mark finished before DB write & draft clearance
+    finishedRef.current = true;
+    if (draftTimerRef.current) {
+      clearTimeout(draftTimerRef.current);
+      draftTimerRef.current = null;
+    }
+
     try {
-      // The id loaded for this date makes the save amend that session in place.
-      // Without one (a date with no session yet) the log is inserted as a new
-      // session, so a second workout on the same day adds to the day instead of
-      // replacing it.
-      await db.saveWorkoutLog(date, day, '', setsToSave, existingLogIdRef.current);
-      // Finalize: mark the session as finished BEFORE purging the draft so
-      // the unmount-time flush (which runs when we navigate away) can never
-      // re-write the draft we are about to delete. Then stop the rest-timer
-      // notification, permanently erase the crash-recovery draft (verified
-      // inside clearWorkoutDraft), and only then reset the stack to the Days
-      // Overview and return to the Dashboard tab.
-      finishedRef.current = true;
-      if (draftTimerRef.current) {
-        clearTimeout(draftTimerRef.current);
-        draftTimerRef.current = null;
-      }
+      // The session token allocated on session initiation makes the save atomic and idempotent
+      await db.saveWorkoutLog(date, day, '', setsToSave, sessionLogIdRef.current);
       await clearWorkoutDraft();
       await cancelRestTimerNotification();
       useAppStore.getState().notifyWorkoutSaved();
       navigation.reset({ index: 0, routes: [{ name: 'WorkoutDays' }] });
       navigation.getParent()?.navigate('Dashboard' as never);
     } catch (err) {
+      finishedRef.current = false;
       console.error('Save error (workout log):', err);
-      Alert.alert('Error', 'Failed to save workout log.');
+      Alert.alert('Error', err instanceof db.InvalidSetError ? err.message : 'Failed to save workout log.');
     }
   };
 

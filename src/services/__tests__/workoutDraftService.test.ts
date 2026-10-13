@@ -32,9 +32,15 @@ function draftInput(overrides: Partial<WorkoutDraft> = {}) {
   return input;
 }
 
-/** The payload a round-trip test should expect back: the input, plus the two stamped fields. */
+/** The payload a round-trip test should expect back: the input, plus the stamped fields. */
 function stampedDraft(input: ReturnType<typeof draftInput>, updatedAt: number): WorkoutDraft {
-  return { ...input, version: DRAFT_VERSION, updatedAt };
+  return {
+    ...input,
+    version: DRAFT_VERSION,
+    updatedAt,
+    generation: input.generation ?? 0,
+    logId: input.logId,
+  };
 }
 
 function buildDraft(overrides: Partial<WorkoutDraft> = {}): WorkoutDraft {
@@ -282,6 +288,33 @@ describe('workoutDraftService', () => {
 
       expect(read).toBeNull();
       expect(await service.getWorkoutDraft()).toBeNull();
+    });
+
+    it('discards a trailing debounced save that was scheduled before clearWorkoutDraft', async () => {
+      const service = loadService();
+      const input = draftInput({ logId: 'wl_test_session_1' });
+
+      // Debounce starts, capturing generation
+      const snapshotGen = service.getCurrentDraftGeneration();
+
+      // Workout completes, clearing the draft
+      await service.clearWorkoutDraft();
+
+      // Debounce timer fires after clearWorkoutDraft
+      await service.saveWorkoutDraft(input, snapshotGen);
+
+      expect(await service.getWorkoutDraft()).toBeNull();
+      expect(storage().__getStore().has(DRAFT_KEY)).toBe(false);
+    });
+
+    it('round-trips pre-allocated session logId in draft payload', async () => {
+      const service = loadService();
+      const input = draftInput({ logId: 'wl_session_token_123' });
+
+      await service.saveWorkoutDraft(input);
+
+      const draft = await service.getWorkoutDraft();
+      expect(draft?.logId).toBe('wl_session_token_123');
     });
   });
 });

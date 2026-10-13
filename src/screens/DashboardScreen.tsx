@@ -132,8 +132,12 @@ export default function DashboardScreen({
   // Delete the selected day's logged workout and revert the card to "Start Workout"
   const handleConfirmDelete = useCallback(async () => {
     try {
-      const dateStr = formatISODate(selectedDate);
-      await db.deleteWorkoutLogForDate(dateStr);
+      if (selectedDayLog?.id) {
+        await db.deleteWorkoutLog(selectedDayLog.id);
+      } else {
+        const dateStr = formatISODate(selectedDate);
+        await db.deleteWorkoutLogForDate(dateStr);
+      }
       setConfirmDeleteVisible(false);
       // Bump version to trigger a dashboard reload (card reverts to active state)
       useAppStore.getState().notifyWorkoutSaved();
@@ -142,7 +146,7 @@ export default function DashboardScreen({
       console.error('Error deleting workout log:', err);
       setConfirmDeleteVisible(false);
     }
-  }, [loadData, selectedDate]);
+  }, [loadData, selectedDate, selectedDayLog]);
 
   const handleOpenStreakHistory = useCallback(() => setStreakHistoryVisible(true), []);
   const handleCloseStreakHistory = useCallback(() => setStreakHistoryVisible(false), []);
