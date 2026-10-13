@@ -129,11 +129,11 @@ npm test -- --ci --watchAll=false    # all suites green
 | **Analytics & Bucketing** | 1 | 33 | Weekly/monthly aggregation, chart headroom geometry |
 | **Streak Engine** | 1 | 45 | Monday-first alignment, split-aware rest-day tolerance |
 | **Drag Reordering** | 1 | 16 | Midpoint swap thresholds, boundary hysteresis |
-| **SQLite Schema & ACID** | 3 | 76 | Migrations (`user_version`), indexes, soft-delete archival, multi-session logs, rollback on error, backup round-trips, fixtures |
-| **Crash Recovery Drafts** | 1 | 17 | Draft serialization, deep payload validation, expiry, generation-guarded discard |
+| **SQLite Schema & ACID** | 3 | 81 | Migrations (`user_version`), indexes, soft-delete archival & re-activation, idempotent saves via session token, blank set stripping, multi-session logs, rollback on error, backup round-trips, fixtures |
+| **Crash Recovery Drafts** | 1 | 19 | Draft serialization, session token persistence, deep payload validation, expiry, generation-guarded discard of trailing debounced saves |
 | **Background Timers** | 1 | 16 | Android notification channels, exact-alarm fallback |
 | **State & UI Integration** | 7 | 83 | Screen mount lifecycles, store reactivity, interaction flows, modal lifecycles |
-| **Total** | **16** | **306** | **0 failures** |
+| **Total** | **16** | **313** | **0 failures** |
 
 > Per-suite scope — including what each database test asserts about the schema and migration policy — is in [docs/architecture.md](docs/architecture.md). Run the commands above for the live counts.
 
@@ -143,11 +143,11 @@ npm test -- --ci --watchAll=false    # all suites green
 
 - **Local-first trade-off**: all data lives exclusively in local SQLite. Device loss, or uninstallation without an exported JSON backup, results in permanent data loss. Cloud synchronization is not currently implemented.
 
-- **Binary target**: release APKs are built for `arm64-v8a` to keep the download around 19.6 MB. Desktop x86/x86_64 emulators cannot install that artifact — build locally with `npx expo run:android` instead.
+- **Binary target**: release APKs are built for `arm64-v8a` to keep the download compact. Desktop x86/x86_64 emulators cannot install that artifact — build locally with `npx expo run:android` instead.
 
-- **Soft-deletion strategy**: deleting an exercise from the catalog sets `is_archived = 1` rather than removing the row. Archived exercises disappear from the catalog and from routine setup, while every logged set, volume aggregation, and 1RM calculation keeps reading them, so historical charts survive the deletion. An archived exercise still holds its name (the `name` column is `UNIQUE`); rename it to reuse the name.
+- **Soft-deletion strategy**: deleting an exercise from the catalog sets `is_archived = 1` rather than removing the row. Archived exercises disappear from the catalog and from routine setup, while every logged set, volume aggregation, and 1RM calculation keeps reading them, so historical charts survive the deletion. Active exercise names are unique via partial index `idx_exercises_active_name`; re-creating an exercise with an archived exercise's name seamlessly re-activates it (`is_archived = 0`).
 
-- **Dual-storage split**: durable training data lives in `gym_tracker.db`; the in-progress session lives in AsyncStorage under `@active_workout_draft`. The draft is a recovery copy, not a record: the log is committed to SQLite first and the draft is purged after that commit (at-least-once recovery), so a crash between the two leaves the saved session plus a draft that can still be resumed — never a session that was acknowledged and then lost.
+- **Dual-storage split & Idempotent Crash Recovery**: durable training data lives in `gym_tracker.db`; the in-progress session lives in AsyncStorage under `@active_workout_draft`. Sessions carry a pre-allocated `logId` token that upserts idempotently into SQLite (`INSERT ... ON CONFLICT(id) DO UPDATE ...`), preventing double-counted training volume on crash recovery retries. Debounce timers are cancelled upon finish, and trailing writes are generation-guarded.
 
 - **Roadmap**: encrypted local backup files, optional end-to-end encrypted device sync, a Wear OS companion, and an RPE / warm-up set calculator. None of these are implemented.
 

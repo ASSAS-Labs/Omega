@@ -105,7 +105,7 @@ A hard delete cascaded through `ON DELETE CASCADE` into `workout_sets` and `day_
 - Catalog reads (`getAllExercises`, `getExercisesByMuscleGroup`), the routine view (`getDayTemplate`), routine writes (`saveDayTemplate`) and routine counts all filter on `is_archived = 0`.
 - Logged history is never filtered: `getExerciseProgress`, `getExerciseBestSet`, `getPreviousExerciseSets` and `getExerciseVolumeTrend` read every set regardless of the archive flag.
 - `getTrackedExercises` keeps an archived exercise only while it carries logged history, so the analytics picker can still chart a movement that was trained.
-- An archived exercise keeps its name (`exercises.name` is `UNIQUE` table-wide). `ExerciseAlreadyExistsError` reports whether the conflict is with a live or an archived row, and the UI explains that the archived row must be renamed to reuse the name.
+- Active exercise names are enforced unique via partial index `idx_exercises_active_name ON exercises(name COLLATE NOCASE) WHERE is_archived = 0`. Re-creating an exercise matching an archived exercise's name seamlessly re-activates it (`UPDATE exercises SET is_archived = 0, muscleGroup = ? WHERE id = ?`) rather than throwing a duplicate constraint collision.
 
 ### Multiple sessions per day
 
@@ -158,15 +158,15 @@ OMEGA deliberately splits durable relational storage from ephemeral session stat
 Every test runs in Jest 30 against `node:sqlite` (Node's built-in `DatabaseSync`), executing genuine SQL statements with real constraint enforcement rather than an in-memory fake of SQLite.
 
 - **Test suites**: 16
-- **Tests**: 306, all passing (`npm test -- --ci --watchAll=false`)
+- **Tests**: 313, all passing (`npm test -- --ci --watchAll=false`)
 - **Static analysis**: TypeScript 5.9 `strict: true`, 0 diagnostics (`npx tsc --noEmit`)
 
 | Category | Suite File | Tests | Scope |
 |---|---|:---:|---|
-| **Relational Schema & Migrations** | `database.test.ts` | 44 | Base schema, indexes, WAL/busy-timeout/foreign-key configuration, version stamping, v1→v2 soft-delete migration, pre-versioning repair, FK enforcement, exercise archival, per-date multi-session reads and writes, transaction rollback, analytics queries |
+| **Relational Schema & Migrations** | `database.test.ts` | 48 | Base schema, indexes, WAL/busy-timeout/foreign-key configuration, version stamping, v1→v2 soft-delete migration, pre-versioning repair, FK enforcement, exercise archival & re-activation, idempotent saves via session token, blank set stripping, per-date multi-session reads and writes, transaction rollback, analytics queries |
 | **Seed & Diagnostics** | `debugSeed.test.ts` | 14 | Deterministic fixture generation, consistency with the analytics queries, purge routine |
-| **Data Portability** | `backupService.test.ts` | 18 | Full-table JSON export, archive flag round-trip, import validation, rollback on malformed payloads |
-| **Crash Recovery Drafts** | `workoutDraftService.test.ts` | 17 | Serialization round-trip, version/`updatedAt` stamping, deep payload validation, 24-hour expiry, generation-guarded discard, failure propagation |
+| **Data Portability** | `backupService.test.ts` | 19 | Full-table JSON export, archive flag round-trip, import validation, v1 backup restore without archive flag, rollback on malformed payloads |
+| **Crash Recovery Drafts** | `workoutDraftService.test.ts` | 19 | Serialization round-trip, version/`updatedAt` stamping, session token persistence, deep payload validation, 24-hour expiry, generation-guarded discard of trailing debounced saves, failure propagation |
 | **Domain Mathematics** | `calculations.test.ts` | 20 | Epley 1RM boundaries, KG/LBS conversion precision |
 | **Analytics Bucketing** | `analyticsCalculations.test.ts` | 33 | Session/week/month bucketing, chart headroom geometry |
 | **Streak Engine** | `dateUtils.test.ts` | 45 | Monday-first alignment, split-aware rest-day forgiveness, missed-day penalties |
