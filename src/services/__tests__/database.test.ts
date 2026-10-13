@@ -8,6 +8,7 @@
 import type * as DatabaseModule from '../database';
 import type { MockSQLiteDatabase } from '../../../__mocks__/expo-sqlite';
 import { formatISODate } from '../../utils/dateUtils';
+import { estimateOneRepMax } from '../../utils/calculations';
 
 type SqliteMock = {
   openDatabaseSync: (name: string) => MockSQLiteDatabase;
@@ -42,8 +43,19 @@ describe('database service', () => {
     jest.resetModules();
   });
 
+  /** All exercise ids referenced by logged sets and routine templates. */
+  async function linkedExerciseIds(handle: MockSQLiteDatabase): Promise<string[]> {
+    const sets = await handle.getAllAsync<{ exercise_id: string }>(
+      'SELECT exercise_id FROM workout_sets;'
+    );
+    const templates = await handle.getAllAsync<{ exercise_id: string }>(
+      'SELECT exercise_id FROM day_templates;'
+    );
+    return [...sets, ...templates].map((row) => row.exercise_id);
+  }
+
   describe('schema initialization and versioning', () => {
-    it('creates the base schema, enables foreign keys, and stamps user_version = 1', async () => {
+    it('creates the base schema, enables foreign keys, and stamps user_version = 2', async () => {
       const { db, handle } = await freshDatabase();
 
       const version = await handle.getFirstAsync<{ user_version: number }>('PRAGMA user_version;');
@@ -52,8 +64,8 @@ describe('database service', () => {
         "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name;"
       );
 
-      expect(db.SCHEMA_VERSION).toBe(1);
-      expect(version?.user_version).toBe(1);
+      expect(db.SCHEMA_VERSION).toBe(2);
+      expect(version?.user_version).toBe(2);
       expect(foreignKeys?.foreign_keys).toBe(1);
       expect(tables.map((t) => t.name)).toEqual(
         expect.arrayContaining([
@@ -63,6 +75,23 @@ describe('database service', () => {
           'workout_logs',
           'workout_sets',
           'day_templates',
+        ])
+      );
+    });
+
+    it('creates the relational indexes the analytics joins depend on', async () => {
+      const { handle } = await freshDatabase();
+
+      const indexes = await handle.getAllAsync<{ name: string }>(
+        "SELECT name FROM sqlite_master WHERE type = 'index' ORDER BY name;"
+      );
+
+      expect(indexes.map((i) => i.name)).toEqual(
+        expect.arrayContaining([
+          'idx_workout_sets_log_id',
+          'idx_workout_sets_exercise_id',
+          'idx_workout_logs_date',
+          'idx_exercises_archived',
         ])
       );
     });
@@ -89,7 +118,7 @@ describe('database service', () => {
       const second = await freshDatabase();
 
       expect(await second.db.getAllExercises()).toHaveLength(1);
-      expect((await second.handle.getFirstAsync<{ user_version: number }>('PRAGMA user_version;'))?.user_version).toBe(1);
+      expect((await second.handle.getFirstAsync<{ user_version: number }>('PRAGMA user_version;'))?.user_version).toBe(2);
       // Seeding is idempotent, so groups are neither duplicated nor wiped
       expect(await second.db.getMuscleGroups()).toHaveLength(MUSCLE_GROUP_COUNT);
     });
@@ -127,7 +156,7 @@ describe('database service', () => {
       expect(busyTimeout?.timeout).toBe(5000);
     });
 
-    it('keeps cascading deletes working after a relaunch', async () => {
+    it('archives a deleted exercise on every launch, not just the first', async () => {
       const first = await freshDatabase();
       const exercise = await first.db.addExercise('Deadlift', 'Back');
       await first.db.saveDayTemplate('Monday', [{ exerciseId: exercise.id, targetSets: 3 }]);
@@ -142,9 +171,80 @@ describe('database service', () => {
 
       await second.db.deleteExercise(exercise.id);
 
-      // ON DELETE CASCADE must clean up both children of the deleted exercise
-      expect(await second.handle.getAllAsync('SELECT id FROM workout_sets;')).toEqual([]);
-      expect(await second.handle.getAllAsync('SELECT exercise_id FROM day_templates;')).toEqual([]);
+      // The archive flag survives the relaunch and takes the exercise out of
+      // the catalog and the routine...
+      expect(await second.db.getAllExercises()).toEqual([]);
+      expect(await second.db.getDayTemplate('Monday')).toEqual([]);
+
+      // ...while the sets it logged are still readable, which is the whole
+      // point of archiving instead of deleting
+      const log = await second.db.getWorkoutLogForDate('2026-09-01');
+      expect(log?.sets.map((s) => [s.exerciseId, s.weight])).toEqual([[exercise.id, 120]]);
+      const archived = await second.handle.getFirstAsync<{ is_archived: number }>(
+        'SELECT is_archived FROM exercises WHERE id = ?;',
+        [exercise.id]
+      );
+      expect(archived?.is_archived).toBe(1);
+    });
+
+    it('adds the soft-delete column to a version 1 database without losing history', async () => {
+      // A version 1 database is the shape every currently-installed build
+      // wrote: no `is_archived`, no user_version 2. The migration has to add
+      // the column in place and leave the logged history untouched.
+      const { DB_NAME } = loadDbModule();
+      const previous = sqlite().openDatabaseSync(DB_NAME);
+      await previous.execAsync(`
+        PRAGMA foreign_keys = OFF;
+        CREATE TABLE muscle_groups (id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE);
+        CREATE TABLE exercises (
+          id TEXT PRIMARY KEY, name TEXT UNIQUE NOT NULL, muscleGroup TEXT, createdAt TEXT
+        );
+        CREATE TABLE workout_logs (
+          id TEXT PRIMARY KEY, date TEXT NOT NULL, day_of_week TEXT NOT NULL, notes TEXT, completed INTEGER NOT NULL DEFAULT 1
+        );
+        CREATE TABLE workout_sets (
+          id TEXT PRIMARY KEY,
+          workout_log_id TEXT NOT NULL,
+          exercise_id TEXT NOT NULL,
+          set_number INTEGER NOT NULL,
+          weight REAL NOT NULL,
+          reps INTEGER NOT NULL,
+          FOREIGN KEY (workout_log_id) REFERENCES workout_logs (id) ON DELETE CASCADE,
+          FOREIGN KEY (exercise_id) REFERENCES exercises (id) ON DELETE CASCADE
+        );
+        CREATE TABLE day_templates (
+          day_of_week TEXT NOT NULL,
+          exercise_id TEXT NOT NULL,
+          target_sets INTEGER NOT NULL DEFAULT 3,
+          sort_order INTEGER NOT NULL DEFAULT 0,
+          PRIMARY KEY (day_of_week, exercise_id),
+          FOREIGN KEY (exercise_id) REFERENCES exercises (id) ON DELETE CASCADE
+        );
+        INSERT INTO exercises (id, name, muscleGroup, createdAt)
+          VALUES ('ex_v1', 'Bench Press', 'Chest', '2026-01-01T00:00:00.000Z');
+        INSERT INTO workout_logs (id, date, day_of_week, notes, completed)
+          VALUES ('wl_v1', '2026-01-02', 'Friday', '', 1);
+        INSERT INTO workout_sets (id, workout_log_id, exercise_id, set_number, weight, reps)
+          VALUES ('ws_v1', 'wl_v1', 'ex_v1', 1, 80, 8);
+        PRAGMA user_version = 1;
+        PRAGMA foreign_keys = ON;
+      `);
+
+      const { db: migrated, handle } = await freshDatabase();
+
+      const columns = await handle.getAllAsync<{ name: string }>('PRAGMA table_info(exercises);');
+      expect(columns.map((c) => c.name)).toContain('is_archived');
+      expect((await handle.getFirstAsync<{ user_version: number }>('PRAGMA user_version;'))?.user_version).toBe(2);
+
+      // History survives the migration and the exercise is still listed
+      expect(await migrated.getAllExercises()).toHaveLength(1);
+      const log = await migrated.getWorkoutLogForDate('2026-01-02');
+      expect(log?.sets.map((s) => s.weight)).toEqual([80]);
+
+      // ...and the new column is what a delete flips, not the row itself
+      await migrated.deleteExercise('ex_v1');
+      expect(await migrated.getAllExercises()).toEqual([]);
+      expect(await linkedExerciseIds(handle)).toEqual(['ex_v1']);
     });
 
     it('repairs a pre-versioning legacy database while stamping the current version', async () => {
@@ -255,8 +355,8 @@ describe('database service', () => {
       });
     });
 
-    it('cascades exercise deletion to routine templates and logged sets', async () => {
-      const { db } = await freshDatabase();
+    it('archives an exercise instead of cascading into its routines and logged sets', async () => {
+      const { db, handle } = await freshDatabase();
       const exercise = await db.addExercise('Deadlift', 'Back');
       const other = await db.addExercise('Row', 'Back');
 
@@ -271,11 +371,42 @@ describe('database service', () => {
 
       await db.deleteExercise(exercise.id);
 
-      const template = await db.getDayTemplate('Monday');
-      expect(template.map((t) => t.exercise.id)).toEqual([other.id]);
+      // Gone from the catalog and the routine the user would train next...
+      expect((await db.getAllExercises()).map((e) => e.id)).toEqual([other.id]);
+      expect((await db.getDayTemplate('Monday')).map((t) => t.exercise.id)).toEqual([other.id]);
 
+      // ...but every row it ever logged is still there, because a hard delete
+      // used to cascade into `workout_sets` and erase the progression data
+      // while leaving the parent log (and its streak count) in place.
       const log = await db.getWorkoutLogForDate('2026-09-01');
-      expect(log?.sets.map((s) => s.exerciseId)).toEqual([other.id]);
+      expect(log?.sets.map((s) => [s.exerciseId, s.weight])).toEqual([
+        [exercise.id, 120],
+        [other.id, 60],
+      ]);
+      expect((await db.getExerciseProgress(exercise.id)).map((p) => p.totalVolume)).toEqual([360]);
+      expect(await linkedExerciseIds(handle)).toEqual(
+        expect.arrayContaining([exercise.id, other.id])
+      );
+    });
+
+    it('keeps an exercise out of the catalog and routine setup while it is archived', async () => {
+      const { db } = await freshDatabase();
+      const bench = await db.addExercise('Bench Press', 'Chest');
+      const fly = await db.addExercise('Cable Fly', 'Chest');
+
+      await db.deleteExercise(bench.id);
+
+      expect(await db.getAllExercises()).toEqual([expect.objectContaining({ id: fly.id })]);
+      expect(await db.getExercisesByMuscleGroup('Chest')).toEqual([
+        expect.objectContaining({ id: fly.id }),
+      ]);
+
+      // A routine rebuilt while the exercise is archived cannot re-add it
+      await db.saveDayTemplate('Monday', [
+        { exerciseId: bench.id, targetSets: 3 },
+        { exerciseId: fly.id, targetSets: 3 },
+      ]);
+      expect((await db.getDayTemplate('Monday')).map((t) => t.exercise.id)).toEqual([fly.id]);
     });
   });
 
@@ -411,40 +542,122 @@ describe('database service', () => {
       ]);
     });
 
-    it('drops sets with zero reps and unknown exercises', async () => {
+    it('rejects an invalid set instead of dropping it from a saved session', async () => {
       const { db } = await freshDatabase();
       const bench = await db.addExercise('Bench Press', 'Chest');
+      const valid = { exerciseId: bench.id, setNumber: 1, weight: 80, reps: 8 };
 
-      await db.saveWorkoutLog('2026-09-01', 'Tuesday', '', [
-        { exerciseId: bench.id, setNumber: 1, weight: 80, reps: 8 },
-        { exerciseId: bench.id, setNumber: 2, weight: 80, reps: 0 },
-        { exerciseId: 'ex_ghost', setNumber: 3, weight: 50, reps: 5 },
-      ]);
+      // Zero reps is input the screen already filters out, and a negative
+      // weight is not a lift: both used to be skipped silently while the call
+      // still resolved with a log id, so the caller could not tell a complete
+      // save from an empty one.
+      const rejected = [
+        { ...valid, reps: 0 },
+        { ...valid, reps: -3 },
+        { ...valid, weight: -5 },
+        { ...valid, setNumber: 0 },
+        { ...valid, exerciseId: '' },
+      ];
+      for (const set of rejected) {
+        await expect(db.saveWorkoutLog('2026-09-01', 'Tuesday', '', [set])).rejects.toThrow(
+          db.InvalidSetError
+        );
+      }
 
-      const log = await db.getWorkoutLogForDate('2026-09-01');
-      expect(log?.sets).toHaveLength(1);
-      expect(log?.sets[0].setNumber).toBe(1);
+      // Nothing was written by the rejected calls
+      expect(await db.getWorkoutLogForDate('2026-09-01')).toBeNull();
+      expect(await (await db.getDB()).getAllAsync('SELECT id FROM workout_sets;')).toEqual([]);
+
+      // The same payload without the bad row saves cleanly
+      await expect(
+        db.saveWorkoutLog('2026-09-01', 'Tuesday', '', [valid])
+      ).resolves.toEqual(expect.any(String));
+      expect((await db.getWorkoutLogForDate('2026-09-01'))?.sets).toHaveLength(1);
     });
 
-    it('is idempotent for a date: re-saving replaces the previous log and its sets', async () => {
+    it('rejects a set for an exercise the library does not have', async () => {
       const { db } = await freshDatabase();
       const bench = await db.addExercise('Bench Press', 'Chest');
 
-      await db.saveWorkoutLog('2026-09-01', 'Tuesday', 'first', [
+      // A reference the database cannot resolve is a caller bug, not a set to
+      // discard: the old behaviour stored the session without those rows and
+      // returned success.
+      await expect(
+        db.saveWorkoutLog('2026-09-01', 'Tuesday', '', [
+          { exerciseId: bench.id, setNumber: 1, weight: 80, reps: 8 },
+          { exerciseId: 'ex_ghost', setNumber: 2, weight: 50, reps: 5 },
+        ])
+      ).rejects.toThrow(db.UnknownExerciseError);
+
+      expect(await db.getWorkoutLogForDate('2026-09-01')).toBeNull();
+    });
+
+    it('keeps both sessions when the same date is logged twice', async () => {
+      const { db, handle } = await freshDatabase();
+      const bench = await db.addExercise('Bench Press', 'Chest');
+
+      const morning = await db.saveWorkoutLog('2026-09-01', 'Tuesday', 'morning', [
         { exerciseId: bench.id, setNumber: 1, weight: 80, reps: 8 },
       ]);
-      const secondId = await db.saveWorkoutLog('2026-09-01', 'Tuesday', 'second', [
-        { exerciseId: bench.id, setNumber: 1, weight: 90, reps: 5 },
-        { exerciseId: bench.id, setNumber: 2, weight: 90, reps: 4 },
+      const evening = await db.saveWorkoutLog('2026-09-01', 'Tuesday', 'evening', [
+        { exerciseId: bench.id, setNumber: 1, weight: 70, reps: 12 },
       ]);
 
-      const logs = await (await db.getDB()).getAllAsync<{ id: string }>('SELECT id FROM workout_logs;');
-      expect(logs).toHaveLength(1);
+      // The old implementation deleted every log for the date before inserting,
+      // so the morning session (and its sets) vanished without a warning.
+      expect(evening).not.toBe(morning);
+      const logs = await handle.getAllAsync<{ id: string; notes: string }>(
+        'SELECT id, notes FROM workout_logs ORDER BY id ASC;'
+      );
+      expect(logs.map((l) => l.notes).sort()).toEqual(['evening', 'morning']);
 
-      const log = await db.getWorkoutLogForDate('2026-09-01');
-      expect(log?.id).toBe(secondId);
-      expect(log?.notes).toBe('second');
-      expect(log?.sets).toHaveLength(2);
+      const sets = await handle.getAllAsync<{ workout_log_id: string }>(
+        'SELECT workout_log_id FROM workout_sets;'
+      );
+      expect(sets.map((s) => s.workout_log_id).sort()).toEqual([morning, evening].sort());
+
+      // Both sessions count toward the day exactly once
+      expect(await db.getCompletedWorkoutDates()).toEqual(['2026-09-01']);
+
+      // ...and the day reads back as its newest session
+      expect((await db.getWorkoutLogForDate('2026-09-01'))?.id).toBe(evening);
+    });
+
+    it('amends a session by id without touching another session on the same date', async () => {
+      const { db, handle } = await freshDatabase();
+      const bench = await db.addExercise('Bench Press', 'Chest');
+
+      const first = await db.saveWorkoutLog('2026-09-01', 'Tuesday', 'first', [
+        { exerciseId: bench.id, setNumber: 1, weight: 80, reps: 8 },
+      ]);
+      await db.saveWorkoutLog('2026-09-01', 'Tuesday', 'second', [
+        { exerciseId: bench.id, setNumber: 1, weight: 90, reps: 5 },
+      ]);
+
+      // The workout screen passes back the id it loaded, which amends that one
+      // session in place — no blanket delete by date.
+      const amended = await db.saveWorkoutLog(
+        '2026-09-01',
+        'Tuesday',
+        'first (edited)',
+        [{ exerciseId: bench.id, setNumber: 1, weight: 82.5, reps: 8 }],
+        first
+      );
+      expect(amended).toBe(first);
+
+      const logs = await handle.getAllAsync<{ id: string; notes: string }>(
+        'SELECT id, notes FROM workout_logs ORDER BY id ASC;'
+      );
+      expect(logs).toHaveLength(2);
+      expect(logs.find((l) => l.id === first)?.notes).toBe('first (edited)');
+
+      const sets = await handle.getAllAsync<{ workout_log_id: string; weight: number }>(
+        'SELECT workout_log_id, weight FROM workout_sets ORDER BY weight ASC;'
+      );
+      expect(sets).toEqual([
+        { workout_log_id: first, weight: 82.5 },
+        { workout_log_id: logs.find((l) => l.id !== first)!.id, weight: 90 },
+      ]);
     });
 
     it('deletes a logged day together with its sets', async () => {
@@ -461,6 +674,26 @@ describe('database service', () => {
       expect(sets).toHaveLength(0);
     });
 
+    it('deletes only the newest session of a multi-session day', async () => {
+      const { db } = await freshDatabase();
+      const bench = await db.addExercise('Bench Press', 'Chest');
+
+      const morning = await db.saveWorkoutLog('2026-09-01', 'Tuesday', 'morning', [
+        { exerciseId: bench.id, setNumber: 1, weight: 80, reps: 8 },
+      ]);
+      const evening = await db.saveWorkoutLog('2026-09-01', 'Tuesday', 'evening', [
+        { exerciseId: bench.id, setNumber: 1, weight: 70, reps: 12 },
+      ]);
+
+      await db.deleteWorkoutLogForDate('2026-09-01');
+
+      const remaining = await db.getWorkoutLogForDate('2026-09-01');
+      expect(remaining?.id).toBe(morning);
+      expect(remaining?.notes).toBe('morning');
+      expect(remaining?.sets).toHaveLength(1);
+      expect(evening).not.toBe(morning);
+    });
+
     it('lists distinct completed workout days for streak analytics', async () => {
       const { db } = await freshDatabase();
       const bench = await db.addExercise('Bench Press', 'Chest');
@@ -471,7 +704,7 @@ describe('database service', () => {
       await db.saveWorkoutLog('2026-09-01', 'Tuesday', '', [
         { exerciseId: bench.id, setNumber: 1, weight: 80, reps: 8 },
       ]);
-      await db.saveWorkoutLog('2026-09-01', 'Tuesday', 'same day re-log', [
+      await db.saveWorkoutLog('2026-09-01', 'Tuesday', 'same day second session', [
         { exerciseId: bench.id, setNumber: 1, weight: 82, reps: 8 },
       ]);
 
@@ -573,6 +806,33 @@ describe('database service', () => {
       expect(best).toEqual({ weight: 90, reps: 8, e1rm: 114 });
     });
 
+    it('scores the best set with the same Epley formula the app displays', async () => {
+      const { db } = await freshDatabase();
+      const bench = await db.addExercise('Bench Press', 'Chest');
+
+      // Two sets whose ranking the raw formula and the app's formula agree on,
+      // so the assertion can be about the *value*: the old query rounded the
+      // estimate (`Math.round(116.67)` = 117) while the TypeScript formula keeps
+      // two decimals (116.67), so the "best set" card could show a 1RM that no
+      // calculation in the app ever produced.
+      await db.saveWorkoutLog('2026-09-08', 'Tuesday', '', [
+        { exerciseId: bench.id, setNumber: 1, weight: 100, reps: 5 },
+      ]);
+
+      const best = await db.getExerciseBestSet(bench.id);
+      expect(best).toEqual({ weight: 100, reps: 5, e1rm: 116.67 });
+      expect(best?.e1rm).toBe(estimateOneRepMax(100, 5));
+
+      // A single rep scores as the exact weight it was lifted at, which is the
+      // rule that makes `estimateOneRepMax(w, 1) === w`
+      await db.saveWorkoutLog('2026-09-15', 'Tuesday', '', [
+        { exerciseId: bench.id, setNumber: 1, weight: 120, reps: 1 },
+      ]);
+      const single = await db.getExerciseBestSet(bench.id);
+      expect(single).toEqual({ weight: 120, reps: 1, e1rm: 120 });
+      expect(single?.e1rm).toBe(estimateOneRepMax(120, 1));
+    });
+
     it('returns null when an exercise has no logged sets yet', async () => {
       const { db } = await freshDatabase();
       const bench = await db.addExercise('Bench Press', 'Chest');
@@ -582,39 +842,87 @@ describe('database service', () => {
       expect(await db.getExerciseVolumeTrend(bench.id)).toEqual({ recentVolume: 0, priorVolume: 0 });
     });
 
-    it('splits training volume into the trailing 4 weeks versus the 4 weeks before', async () => {
-      const { db } = await freshDatabase();
+    it('splits training volume into two equal 28-day windows', async () => {
+      const { db, handle } = await freshDatabase();
       const bench = await db.addExercise('Bench Press', 'Chest');
 
-      await db.saveWorkoutLog(daysAgo(10), 'Tuesday', '', [
-        { exerciseId: bench.id, setNumber: 1, weight: 100, reps: 5 }, // 500 kg, recent window
-      ]);
-      await db.saveWorkoutLog(daysAgo(40), 'Tuesday', '', [
-        { exerciseId: bench.id, setNumber: 1, weight: 50, reps: 10 }, // 500 kg, prior window
-      ]);
-      await db.saveWorkoutLog(daysAgo(70), 'Tuesday', '', [
-        { exerciseId: bench.id, setNumber: 1, weight: 999, reps: 10 }, // older than both windows
-      ]);
+      // Boundaries are counted in calendar dates: the recent window is
+      // [today - 27, today] and the prior window [today - 55, today - 28],
+      // 28 days each. A single `today - 28` cutoff used to put 29 days in the
+      // recent bucket, inflating it by roughly 3.5% against the prior one.
+      const recentStart = daysAgo(27);
+      const priorStart = daysAgo(55);
+      const beforePriorWindow = daysAgo(56);
 
+      for (const [date, weight] of [
+        [daysAgo(0), 10], // last day of the recent window
+        [recentStart, 20], // first day of the recent window
+        [daysAgo(20), 40], // inside the recent window
+        [daysAgo(28), 1000], // first day of the prior window
+        [priorStart, 2000], // ...and its last day
+        [beforePriorWindow, 999], // outside both windows
+      ] as [string, number][]) {
+        await db.saveWorkoutLog(date, 'Tuesday', '', [
+          { exerciseId: bench.id, setNumber: 1, weight, reps: 1 },
+        ]);
+      }
+
+      // recent = 10 + 20 + 40, prior = 1000 + 2000, and the 999 outside both
+      // windows is filtered out before the aggregation rather than grouped and
+      // discarded after it.
       expect(await db.getExerciseVolumeTrend(bench.id)).toEqual({
-        recentVolume: 500,
-        priorVolume: 500,
+        recentVolume: 70,
+        priorVolume: 3000,
       });
+
+      const windowDates = await handle.getAllAsync<{ date: string }>(
+        `SELECT date FROM workout_logs WHERE date >= ? AND date <= ? ORDER BY date ASC;`,
+        [priorStart, daysAgo(0)]
+      );
+      expect(windowDates).toHaveLength(5);
     });
 
-    it('returns the most recent previous sets for an exercise', async () => {
+    it('returns every set of the most recent session for an exercise', async () => {
       const { db } = await freshDatabase();
       const bench = await db.addExercise('Bench Press', 'Chest');
+
+      // The older session is the longer one: a global `LIMIT 10` would top up
+      // the newer session's rows with the leftovers from this one, which is the
+      // mismatch this query exists to prevent.
+      await db.saveWorkoutLog('2026-09-01', 'Tuesday', '', [
+        { exerciseId: bench.id, setNumber: 1, weight: 80, reps: 8 },
+        { exerciseId: bench.id, setNumber: 2, weight: 82.5, reps: 6 },
+        { exerciseId: bench.id, setNumber: 3, weight: 85, reps: 4 },
+      ]);
+      await db.saveWorkoutLog('2026-09-08', 'Tuesday', '', [
+        { exerciseId: bench.id, setNumber: 1, weight: 90, reps: 5 },
+      ]);
+
+      expect(await db.getPreviousExerciseSets(bench.id)).toEqual([
+        { setNumber: 1, weight: 90, reps: 5 },
+      ]);
+    });
+
+    it('reads the previous session of an exercise independently per exercise', async () => {
+      const { db } = await freshDatabase();
+      const bench = await db.addExercise('Bench Press', 'Chest');
+      const squat = await db.addExercise('Squat', 'Legs');
 
       await db.saveWorkoutLog('2026-09-01', 'Tuesday', '', [
         { exerciseId: bench.id, setNumber: 1, weight: 80, reps: 8 },
       ]);
       await db.saveWorkoutLog('2026-09-08', 'Tuesday', '', [
-        { exerciseId: bench.id, setNumber: 1, weight: 85, reps: 7 },
+        { exerciseId: squat.id, setNumber: 1, weight: 120, reps: 5 },
       ]);
 
-      const previous = await db.getPreviousExerciseSets(bench.id);
-      expect(previous[0]).toEqual({ setNumber: 1, weight: 85, reps: 7 });
+      // Squat's most recent session is the newer one; bench has not been
+      // trained since the earlier session, and must not inherit squat's rows.
+      expect(await db.getPreviousExerciseSets(bench.id)).toEqual([
+        { setNumber: 1, weight: 80, reps: 8 },
+      ]);
+      expect(await db.getPreviousExerciseSets(squat.id)).toEqual([
+        { setNumber: 1, weight: 120, reps: 5 },
+      ]);
     });
 
     it('lists only exercises that are logged or part of a routine', async () => {
@@ -676,8 +984,24 @@ describe('database service', () => {
       const { db } = await freshDatabase();
       await db.addExercise('Bench Press', 'Chest');
 
-      await expect(db.addExercise('  bench press ', 'Chest')).rejects.toThrow('EXERCISE_EXISTS');
+      await expect(db.addExercise('  bench press ', 'Chest')).rejects.toThrow(
+        db.ExerciseAlreadyExistsError
+      );
       expect(await db.getAllExercises()).toHaveLength(1);
+    });
+
+    it('reports that an archived exercise still holds its name', async () => {
+      const { db } = await freshDatabase();
+      const original = await db.addExercise('Bench Press', 'Chest');
+      await db.deleteExercise(original.id);
+
+      // `name` is UNIQUE across the whole table, archived rows included, so the
+      // row can be resurrected by renaming rather than re-added — the error
+      // says which of the two conflicts this is.
+      const conflict = await db.addExercise('Bench Press', 'Chest').catch((err) => err);
+      expect(conflict).toBeInstanceOf(db.ExerciseAlreadyExistsError);
+      expect(conflict.archived).toBe(true);
+      expect((await db.getAllExercises())).toEqual([]);
     });
 
     it('updates an exercise name and muscle group', async () => {
@@ -696,7 +1020,9 @@ describe('database service', () => {
       const first = await db.addExercise('Bench Press', 'Chest');
       await db.addExercise('Squat', 'Legs');
 
-      await expect(db.updateExercise(first.id, 'Squat', 'Legs')).rejects.toThrow('EXERCISE_EXISTS');
+      await expect(db.updateExercise(first.id, 'Squat', 'Legs')).rejects.toThrow(
+        db.ExerciseAlreadyExistsError
+      );
     });
 
     it('filters the library by muscle group', async () => {

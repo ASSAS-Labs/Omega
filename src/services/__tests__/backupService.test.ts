@@ -119,6 +119,39 @@ describe('backupService', () => {
       expect(readRawExportedText()).toContain('\n  "');
     });
 
+    it('exports the archive flag so a backup can restore the live library', async () => {
+      const db = loadDbModule();
+      const backup = loadBackupModule();
+      const { bench } = await seedDatabase(db);
+      await db.deleteExercise(bench.id);
+
+      await backup.exportBackup();
+
+      const payload = readExportedPayload();
+      const rows = payload.data.exercises;
+      expect(rows.find((e) => e.name === 'Bench Press')?.is_archived).toBe(1);
+      expect(rows.find((e) => e.name === 'Cable Fly')?.is_archived).toBe(0);
+      // The archived exercise's history is exported along with it
+      expect(payload.data.workout_sets).toHaveLength(2);
+    });
+
+    it('restores archived exercises as archived', async () => {
+      const db = loadDbModule();
+      const backup = loadBackupModule();
+      const { bench, fly } = await seedDatabase(db);
+      await db.deleteExercise(bench.id);
+      await backup.exportBackup();
+
+      // Re-import the file the service just wrote over its own database
+      await backup.importBackup(EXPORTED_FILE_URI);
+
+      // The library comes back with only the live exercise, while the archived
+      // one still owns the sets it logged.
+      expect((await db.getAllExercises()).map((exercise) => exercise.name)).toEqual(['Cable Fly']);
+      expect(await db.getExerciseProgress(bench.id)).toHaveLength(1);
+      expect((await db.getDayTemplate('Monday')).map((item) => item.exercise.id)).toEqual([fly.id]);
+    });
+
     it('opens the native share sheet for the exported file', async () => {
       const backup = loadBackupModule();
 

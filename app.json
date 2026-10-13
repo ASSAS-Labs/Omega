@@ -1,17 +1,19 @@
 {
   "expo": {
     "name": "Omega",
-    "slug": "omega",
-    "version": "1.0.0",
+    "slug": "counterapp",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/appicon.jpg",
     "userInterfaceStyle": "dark",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.gymtracker.app"
+      "bundleIdentifier": "com.gymtracker.app",
+      "buildNumber": "2"
     },
     "android": {
       "package": "com.omega.tracker",
+      "versionCode": 2,
       "permissions": [
         "SCHEDULE_EXACT_ALARM"
       ]
@@ -42,6 +44,7 @@
       "eas": {
         "projectId": "8289af09-42e6-4c60-9cec-de12005ed2b8"
       }
-    }
+    },
+    "owner": "ronnierobert"
   }
 }

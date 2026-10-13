@@ -234,9 +234,13 @@ export default function ExercisesScreen() {
         flashNotice(`Added "${poolEx.name}"`);
         promptSaveThisToDay(poolEx);
         // Keep modal open so the user can add several in a row; row flips to "Added".
-      } catch (err: any) {
-        if (err?.message === 'EXERCISE_EXISTS') {
-          flashNotice(`"${poolEx.name}" is already in your library`);
+      } catch (err) {
+        if (err instanceof db.ExerciseAlreadyExistsError) {
+          flashNotice(
+            err.archived
+              ? `"${poolEx.name}" is held by an archived exercise — rename that one to reuse the name`
+              : `"${poolEx.name}" is already in your library`
+          );
         } else {
           console.warn('Failed to add from pool:', err);
           Alert.alert('Error', 'Failed to add exercise.');
@@ -313,9 +317,14 @@ export default function ExercisesScreen() {
       setNewExName('');
       flashNotice('Custom exercise added');
       promptSaveThisToDay({ name: addedName, muscleGroup: selectedMg || muscleGroups[0]?.name || '' });
-    } catch (err: any) {
-      if (err?.message === 'EXERCISE_EXISTS') {
-        Alert.alert('Duplicate Exercise', 'An exercise with this name already exists.');
+    } catch (err) {
+      if (err instanceof db.ExerciseAlreadyExistsError) {
+        Alert.alert(
+          'Duplicate Exercise',
+          err.archived
+            ? 'An archived exercise still holds this name. Rename that exercise to reuse the name.'
+            : 'An exercise with this name already exists.'
+        );
       } else {
         Alert.alert('Error', 'Failed to add exercise.');
       }
@@ -364,8 +373,8 @@ export default function ExercisesScreen() {
       await db.updateExercise(editingExercise.id, editName, editMg || muscleGroups[0]?.name || '');
       setEditingExercise(null);
       await refreshData();
-    } catch (err: any) {
-      if (err?.message === 'EXERCISE_EXISTS') {
+    } catch (err) {
+      if (err instanceof db.ExerciseAlreadyExistsError) {
         Alert.alert('Duplicate Exercise', 'An exercise with this name already exists.');
       } else {
         Alert.alert('Error', 'Failed to update exercise.');
@@ -685,8 +694,9 @@ export default function ExercisesScreen() {
             </View>
             <Text style={styles.confirmTitle}>Delete Exercise?</Text>
             <Text style={styles.confirmMessage}>
-              “{pendingDelete?.name || 'This exercise'}” will be removed from your library, all day
-              routines, and workout history.
+              “{pendingDelete?.name || 'This exercise'}” will be removed from your library and
+              every day routine. Logged sets and volume history are kept so past progress
+              stays intact.
             </Text>
             <View style={styles.confirmActions}>
               <TouchableOpacity

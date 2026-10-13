@@ -369,7 +369,13 @@ describe('debug fixture', () => {
       expect(trend.priorVolume).toBeGreaterThan(0);
 
       const previous = await db.getPreviousExerciseSets(benchId);
-      expect(previous).toHaveLength(10); // The UI's "last time" lookup is saturated
+      // "Last time" is one session, not a history-wide window: these are the
+      // sets of the single most recent bench session the fixture wrote.
+      expect(previous.length).toBeGreaterThan(0);
+      expect(previous.length).toBeLessThanOrEqual(4); // The routine's target sets
+      expect(previous.map((set) => set.setNumber)).toEqual(
+        Array.from({ length: previous.length }, (_, index) => index + 1)
+      );
 
       const compliance = await db.getComplianceStats(30);
       expect(compliance.totalDays).toBe(30);

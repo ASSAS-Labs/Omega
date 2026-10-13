@@ -421,8 +421,8 @@ export default function DashboardScreen({
             </View>
             <Text style={styles.confirmTitle}>Delete Completed Session?</Text>
             <Text style={styles.confirmMessage}>
-              This will clear {format(selectedDate, 'MMM d')}'s logged data and revert this day
-              to a fresh workout.
+              This will clear {format(selectedDate, 'MMM d')}'s logged session and revert this day
+              to a fresh workout. Any earlier session saved on the same day is kept.
             </Text>
             <View style={styles.confirmActions}>
               <TouchableOpacity

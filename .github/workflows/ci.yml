@@ -18,8 +18,9 @@ jobs:
       - name: Setup Node.js environment
         uses: actions/setup-node@v4
         with:
-          # node:sqlite, used by the service-test harness, requires Node >= 22.13
-          node-version: 24
+          # Pinned to the floor of package.json's `engines`: node:sqlite's
+          # DatabaseSync (used by the Jest harness) needs >= 22.12.0.
+          node-version: 22.12.0
           cache: 'npm'
 
       - name: Install dependencies

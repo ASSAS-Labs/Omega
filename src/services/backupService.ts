@@ -12,6 +12,8 @@ interface ExerciseRow {
   name: string;
   muscleGroup?: string | null;
   createdAt?: string | null;
+  /** Soft-archive flag; absent in backups written before schema version 2. */
+  is_archived?: number | null;
 }
 interface DayTemplateRow {
   day_of_week: string;
@@ -118,8 +120,10 @@ export async function importBackup(uri: string): Promise<number> {
     // Restore in FK-safe order (parents first)
     for (const row of payload.data.exercises) {
       await db.runAsync(
-        'INSERT OR REPLACE INTO exercises (id, name, muscleGroup, createdAt) VALUES (?, ?, ?, ?);',
-        [row.id, row.name, row.muscleGroup ?? null, row.createdAt ?? null]
+        'INSERT OR REPLACE INTO exercises (id, name, muscleGroup, createdAt, is_archived) VALUES (?, ?, ?, ?, ?);',
+        // Backups written before soft deletion existed restore as active
+        // exercises rather than as archived ones.
+        [row.id, row.name, row.muscleGroup ?? null, row.createdAt ?? null, row.is_archived ?? 0]
       );
     }
     for (const row of payload.data.day_templates) {

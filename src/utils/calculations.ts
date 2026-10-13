@@ -55,6 +55,18 @@ export function estimateOneRepMax(weight: number, reps: number): number {
   return Math.round(epleyMax * 100) / 100;
 }
 
+/**
+ * The Epley expression exactly as `estimateOneRepMax` evaluates it, for
+ * callers that rank or aggregate sets in SQL.
+ *
+ * Exported so a query can splice the *same* expression into its `ORDER BY`
+ * instead of restating the formula: the two used to round differently
+ * (`Math.round(...)` in `getExerciseBestSet`, two decimals here), which let the
+ * "best set" a query picked disagree with the 1RM the app displayed for it.
+ */
+export const EPLEY_ONE_REP_MAX_SQL =
+  'CASE WHEN reps = 1 THEN weight ELSE ROUND(weight * (1 + reps / 30.0), 2) END';
+
 
 /** Converts pounds (lbs) to kilograms (kg). */
 export function lbsToKg(lbs: number): number {

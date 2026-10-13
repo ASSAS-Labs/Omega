@@ -145,6 +145,11 @@ export default function ActiveWorkoutScreen() {
   const draftStartedAtRef = useRef(Date.now());
   const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Session already on disk for this date (if any). Kept so "Finish & Save"
+  // amends that record by primary key instead of appending a second session
+  // for the same day — see `saveWorkoutLog`.
+  const existingLogIdRef = useRef<string | undefined>(undefined);
+
   // Set once the session has been finalized ("Finish & Save Workout") so the
   // unmount-time flush can never resurrect the draft we just deleted.
   const finishedRef = useRef(false);
@@ -321,6 +326,9 @@ export default function ActiveWorkoutScreen() {
   // When opened with `resume=1`, restore the exact crash-recovery draft instead.
   const loadLoggingData = async () => {
     if (isResume) {
+      // Throws only if the storage read itself fails, which `loadWorkoutData`
+      // logs as an initialization error: the screen then shows an empty
+      // session rather than a half-restored one.
       const draft = await getWorkoutDraft();
       if (draft) {
         draftStartedAtRef.current = draft.startedAt;
@@ -342,9 +350,11 @@ export default function ActiveWorkoutScreen() {
     // A fresh session supersedes any stale draft
     await clearWorkoutDraft();
     draftStartedAtRef.current = Date.now();
+    existingLogIdRef.current = undefined;
 
     // 1. Check if workout is already logged for this date
     const existingLog = await db.getWorkoutLogForDate(date);
+    existingLogIdRef.current = existingLog?.id;
     const template = await db.getDayTemplate(day);
 
     const assignedMgIds = weeklySplit[day] || [];
@@ -754,7 +764,11 @@ export default function ActiveWorkoutScreen() {
     }
 
     try {
-      await db.saveWorkoutLog(date, day, '', setsToSave);
+      // The id loaded for this date makes the save amend that session in place.
+      // Without one (a date with no session yet) the log is inserted as a new
+      // session, so a second workout on the same day adds to the day instead of
+      // replacing it.
+      await db.saveWorkoutLog(date, day, '', setsToSave, existingLogIdRef.current);
       // Finalize: mark the session as finished BEFORE purging the draft so
       // the unmount-time flush (which runs when we navigate away) can never
       // re-write the draft we are about to delete. Then stop the rest-timer

@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "license": "PolyForm-Noncommercial-1.0.0",
   "main": "index.js",
+  "engines": {
+    "node": ">=22.12.0",
+    "npm": ">=9.0.0"
+  },
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
