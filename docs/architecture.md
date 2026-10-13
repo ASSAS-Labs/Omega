@@ -184,7 +184,7 @@ Every test runs in Jest 30 against `node:sqlite` (Node's built-in `DatabaseSync`
 Runs on pushes and pull requests targeting `main`:
 
 1. Checks out the repository on `ubuntu-latest`.
-2. Configures Node.js `22.12.0` — the floor of `package.json`'s `engines`, because `node:sqlite`'s `DatabaseSync` requires it.
+2. Configures Node.js `24` for unflagged `node:sqlite` `DatabaseSync` support.
 3. Installs dependencies with `npm ci --legacy-peer-deps`.
 4. Runs `npx tsc --noEmit`.
 5. Runs `npm test -- --ci --watchAll=false`.

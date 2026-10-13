@@ -85,7 +85,7 @@ The persistence layer, migration policy, and concurrency model are documented in
 
 ### Prerequisites
 
-- **Node.js `>= 22.12.0`** — required for `DatabaseSync` in `node:sqlite`, which the Jest harness uses. Enforced by `engines` in `package.json` and pinned in CI / the APK build workflow.
+- **Node.js `>= 22.12.0` (Node 24 recommended)** — required for `DatabaseSync` in `node:sqlite`, which the Jest harness uses. Enforced by `engines` in `package.json` and used in CI / the APK build workflow.
 - **npm `>= 9.0.0`**
 - **Android SDK (API 26+)** with an emulator or a connected device.
 
