@@ -6,7 +6,7 @@
   <p>No cloud dependency. No telemetry. All training data stays in an on-device SQLite database.</p>
 
   <p>
-    <a href="https://omega-assas4.vercel.app"><img src="https://img.shields.io/badge/Live_Showcase-omega--assas4.vercel.app-3b82f6?style=flat-square&logo=vercel&logoColor=white" alt="Live Website" /></a>
+    <a href="https://omega-omega-site.vercel.app"><img src="https://img.shields.io/badge/Live_Showcase-omega--omega--site.vercel.app-3b82f6?style=flat-square&logo=vercel&logoColor=white" alt="Live Website" /></a>
     <a href="https://github.com/ASSAS-Labs/Omega/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/ASSAS-Labs/Omega/ci.yml?branch=main&label=CI%20Pipeline&style=flat-square" alt="CI Pipeline" /></a>
     <a href="https://github.com/ASSAS-Labs/Omega/releases/latest/download/app-release.apk"><img src="https://img.shields.io/github/actions/workflow/status/ASSAS-Labs/Omega/build-apk.yml?label=Standalone%20APK&style=flat-square" alt="Build APK" /></a>
     <img src="https://img.shields.io/badge/TypeScript-Strict-3b82f6?style=flat-square" alt="TypeScript Strict" />
@@ -14,7 +14,7 @@
   </p>
 
   <p>
-    <a href="https://omega-assas4.vercel.app"><strong>Explore Product Website</strong></a> &nbsp;&bull;&nbsp;
+    <a href="https://omega-omega-site.vercel.app"><strong>Explore Product Website</strong></a> &nbsp;&bull;&nbsp;
     <a href="https://github.com/ASSAS-Labs/Omega/releases/latest/download/app-release.apk"><strong>Download Latest APK</strong></a> &nbsp;&bull;&nbsp;
     <a href="#mobile-application-interface-showcase"><strong>Interface Showcase</strong></a> &nbsp;&bull;&nbsp;
     <a href="#architecture--tech-stack"><strong>Architecture</strong></a> &nbsp;&bull;&nbsp;
@@ -36,7 +36,7 @@
 - **Background rest timer**: Notifee-powered Android notification channel for the rest countdown, with an exact-alarm permission fallback.
 - **Data portability**: full JSON export and import of every table.
 
-An interactive web overview is available at [omega-assas4.vercel.app](https://omega-assas4.vercel.app).
+An interactive web overview is available at [omega-omega-site.vercel.app](https://omega-omega-site.vercel.app).
 
 ---
 

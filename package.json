@@ -1,6 +1,7 @@
 {
   "name": "omega",
   "version": "1.0.1",
+  "homepage": "https://omega-omega-site.vercel.app",
   "license": "PolyForm-Noncommercial-1.0.0",
   "main": "index.js",
   "engines": {
