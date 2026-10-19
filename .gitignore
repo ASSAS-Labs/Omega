@@ -67,3 +67,6 @@ brag-output-*/
 .env.*
 *.local
 
+# Freebuff / Agent Artifacts
+.freebuff
+.freebuff/

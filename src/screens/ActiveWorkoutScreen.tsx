@@ -17,11 +17,12 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
-import { StackNavigationProp } from '@react-navigation/stack';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { COLORS, SPACING, RADIUS } from '../theme/colors';
 import { SET_COLUMN_WIDTHS, columnGeometry } from '../theme/layout';
 import { useAppStore } from '../store/useAppStore';
-import { Exercise, WorkoutStackParamList } from '../types';
+import { useActiveWorkoutStore } from '../store/useActiveWorkoutStore';
+import { Exercise, RootStackParamList } from '../types';
 import * as db from '../services/database';
 import {
   clearWorkoutDraft,
@@ -30,6 +31,7 @@ import {
   saveWorkoutDraft,
 } from '../services/workoutDraftService';
 import { cancelRestTimerNotification } from '../services/notifeeTimerService';
+import { getDefaultRestDurationMs } from '../services/restTimerPrefs';
 import RestTimerModal from '../components/RestTimerModal';
 import DragHandle from '../components/DragHandle';
 import PressFeedback from '../components/PressFeedback';
@@ -83,9 +85,19 @@ interface TemplateExerciseItem {
 /** Stable key for the picker's exercise rows. */
 const pickerItemKey = (item: Exercise): string => item.id;
 
+/**
+ * INVARIANT: the live workout is an ephemeral full-screen flow on the ROOT
+ * navigation stack, never a route inside the "Workout" tab.
+ *
+ * It is the single owner of the session's set inputs, timer and draft sync.
+ * Every entry point pushes a brand-new mount, so no set value can survive from
+ * a previous session; finishing (or popping the screen) tears the whole flow
+ * down and resets the in-memory session store, leaving the tab navigator with
+ * no back entry into it.
+ */
 export default function ActiveWorkoutScreen() {
-  const navigation = useNavigation<StackNavigationProp<WorkoutStackParamList>>();
-  const route = useRoute<RouteProp<WorkoutStackParamList, 'ActiveWorkout'>>();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const route = useRoute<RouteProp<RootStackParamList, 'ActiveWorkout'>>();
   const { date, day } = route.params;
   const weightUnit = useWeightUnit();
   // 'template' = Workout tab routine builder (no data input)
@@ -142,6 +154,31 @@ export default function ActiveWorkoutScreen() {
   // Rest timer modal state (logging mode only)
   const [restTimerVisible, setRestTimerVisible] = useState(false);
 
+  // Rest duration chosen in *this* workout session (ms). Seeded from the global
+  // default when the session loads and replaced whenever the user turns the
+  // timer wheels; deliberately never written back to the settings preference,
+  // so the next session starts from the configured default again.
+  const [sessionRestDurationMs, setSessionRestDurationMs] = useState<number | null>(null);
+  const sessionRestDurationMsRef = useRef<number | null>(null);
+
+  const applySessionRestDuration = useCallback((ms: number) => {
+    // Mirror in a ref so the unmount-time draft flush can persist the very
+    // latest pick even if its state update has not rendered yet.
+    sessionRestDurationMsRef.current = ms;
+    setSessionRestDurationMs(ms);
+  }, []);
+
+  const handleRestDurationChange = useCallback(
+    (ms: number) => applySessionRestDuration(ms),
+    [applySessionRestDuration]
+  );
+
+  /** Session rest duration in whole seconds, as stored in the draft. */
+  const draftRestDurationSeconds = () => {
+    const ms = sessionRestDurationMsRef.current;
+    return ms !== null && ms > 0 ? Math.round(ms / 1000) : undefined;
+  };
+
   // Crash-recovery draft: timestamp when the logging session started
   const draftStartedAtRef = useRef(Date.now());
   const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -154,21 +191,8 @@ export default function ActiveWorkoutScreen() {
   // unmount-time flush can never resurrect the draft we just deleted.
   const finishedRef = useRef(false);
 
-  // Hide the parent tab bar while logging a session; restore it on exit
-  useEffect(() => {
-    const parent = navigation.getParent();
-    parent?.setOptions({ tabBarStyle: { display: 'none' } });
-    return () => {
-      parent?.setOptions({
-        tabBarStyle: {
-          display: 'flex',
-          backgroundColor: COLORS.bgSecondary,
-          borderTopColor: COLORS.borderSubtle,
-          borderTopWidth: 1,
-        },
-      });
-    };
-  }, [navigation]);
+  // The tab bar needs no handling here: this screen is hosted by the root
+  // stack, above the tab navigator, so it covers the tabs for its lifetime.
 
   // Header right actions:
   // template mode  -> "-" delete toggle + "+" library picker
@@ -238,6 +262,7 @@ export default function ActiveWorkoutScreen() {
         dayName: route.params.dayName,
         startedAt: draftStartedAtRef.current,
         exerciseLogs,
+        lastRestDurationSeconds: draftRestDurationSeconds(),
       }, snapshotGeneration);
     }, 500);
     return () => {
@@ -246,7 +271,7 @@ export default function ActiveWorkoutScreen() {
         draftTimerRef.current = null;
       }
     };
-  }, [exerciseLogs, isTemplateMode, date, day, route.params.dayName]);
+  }, [exerciseLogs, isTemplateMode, date, day, route.params.dayName, sessionRestDurationMs]);
 
   // Ref mirror of the live session so an unmount-time flush can persist the
   // very latest input even if the 500ms debounce had not fired yet.
@@ -269,15 +294,19 @@ export default function ActiveWorkoutScreen() {
       dayName: route.params.dayName,
       startedAt: draftStartedAtRef.current,
       exerciseLogs: logs,
+      lastRestDurationSeconds: draftRestDurationSeconds(),
     }, getCurrentDraftGeneration());
   }, [date, day, isTemplateMode, route.params.dayName]);
 
   // Navigating back (without "Finish & Save") must keep the draft intact so
-  // the parent screen can instantly offer Resume / Discard.
+  // the parent screen can instantly offer Resume / Discard — but the live
+  // session itself is over: tear its in-memory bookkeeping down so nothing can
+  // pick it up again.
   useEffect(() => {
     return () => {
       if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
       flushDraftIfNeeded();
+      useActiveWorkoutStore.getState().resetActiveWorkoutSession();
     };
   }, [date, day, route.params.dayName]);
 
@@ -341,6 +370,11 @@ export default function ActiveWorkoutScreen() {
         draftStartedAtRef.current = draft.startedAt;
         sessionLogIdRef.current = draft.logId ?? db.createWorkoutLogId();
         existingLogIdRef.current = sessionLogIdRef.current;
+        applySessionRestDuration(
+          typeof draft.lastRestDurationSeconds === 'number' && draft.lastRestDurationSeconds > 0
+            ? draft.lastRestDurationSeconds * 1000
+            : await getDefaultRestDurationMs()
+        );
         setExerciseLogs(
           draft.exerciseLogs.map((d) => ({
             exercise: {
@@ -352,12 +386,20 @@ export default function ActiveWorkoutScreen() {
             sets: d.sets.map((s) => ({ setNumber: s.setNumber, weight: s.weight, reps: s.reps })),
           }))
         );
+        useActiveWorkoutStore.getState().beginActiveWorkoutSession({
+          logId: sessionLogIdRef.current,
+          date,
+          day,
+          startedAt: draftStartedAtRef.current,
+        });
         return;
       }
     }
 
-    // A fresh session supersedes any stale draft
+    // A fresh session supersedes any stale draft and starts from the user's
+    // global default rest duration — never from the previous session's pick.
     await clearWorkoutDraft();
+    applySessionRestDuration(await getDefaultRestDurationMs());
     draftStartedAtRef.current = Date.now();
     existingLogIdRef.current = undefined;
 
@@ -460,6 +502,16 @@ export default function ActiveWorkoutScreen() {
     }
 
     setExerciseLogs(logs);
+
+    // Register the live session now that its identity and blank/restored set
+    // rows are in place. Tearing it down resets this to a freshly-installed
+    // state (see the unmount cleanup, finish handler and draft banner).
+    useActiveWorkoutStore.getState().beginActiveWorkoutSession({
+      logId: sessionLogIdRef.current,
+      date,
+      day,
+      startedAt: draftStartedAtRef.current,
+    });
   };
 
   const handleUpdateSet = useCallback(
@@ -791,8 +843,14 @@ export default function ActiveWorkoutScreen() {
       await clearWorkoutDraft();
       await cancelRestTimerNotification();
       useAppStore.getState().notifyWorkoutSaved();
-      navigation.reset({ index: 0, routes: [{ name: 'WorkoutDays' }] });
-      navigation.getParent()?.navigate('Dashboard' as never);
+      // Tear down the in-memory session and resolve the navigation stack in one
+      // explicit step. Never `goBack()` here: a stack that merely pops could
+      // leave the finished logger reachable (or resurrect a discarded draft).
+      useActiveWorkoutStore.getState().resetActiveWorkoutSession();
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Tabs', params: { screen: 'Dashboard' } }],
+      });
     } catch (err) {
       finishedRef.current = false;
       console.error('Save error (workout log):', err);
@@ -1131,6 +1189,8 @@ export default function ActiveWorkoutScreen() {
         <RestTimerModal
           visible={restTimerVisible}
           onClose={() => setRestTimerVisible(false)}
+          initialDurationMs={sessionRestDurationMs ?? undefined}
+          onDurationChange={handleRestDurationChange}
         />
       )}
     </SafeAreaView>

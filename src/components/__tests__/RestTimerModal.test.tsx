@@ -219,6 +219,115 @@ describe('RestTimerModal', () => {
       await act(async () => tree.unmount());
     });
 
+    it('opens on the session duration instead of the saved preference', async () => {
+      // The caller already resolved this session's duration; the saved global
+      // default (1:00) must not override it.
+      await asyncStorage().default.setItem('@default_rest_timer', '60000');
+
+      let tree!: ReactTestRenderer;
+      await act(async () => {
+        tree = create(
+          <RestTimerModal visible onClose={() => {}} initialDurationMs={150_000} />
+        );
+      });
+
+      expect(countdownText(tree)).toBe('2:30');
+      expect(parkedValue(tree, 'rest-minutes-wheel', MINUTE_VALUES)).toBe(2);
+      expect(parkedValue(tree, 'rest-seconds-wheel', SECOND_VALUES)).toBe(30);
+
+      await act(async () => tree.unmount());
+    });
+
+    it('reopens on the caller-supplied session duration', async () => {
+      let tree!: ReactTestRenderer;
+      await act(async () => {
+        tree = create(<RestTimerModal visible onClose={() => {}} initialDurationMs={60_000} />);
+      });
+
+      await act(async () => {
+        tree.update(
+          <RestTimerModal visible={false} onClose={() => {}} initialDurationMs={150_000} />
+        );
+      });
+      await act(async () => {
+        tree.update(<RestTimerModal visible onClose={() => {}} initialDurationMs={150_000} />);
+      });
+
+      expect(countdownText(tree)).toBe('2:30');
+      expect(parkedValue(tree, 'rest-minutes-wheel', MINUTE_VALUES)).toBe(2);
+
+      await act(async () => tree.unmount());
+    });
+
+    it('reports every wheel pick as the session duration', async () => {
+      const onDurationChange = jest.fn();
+      let tree!: ReactTestRenderer;
+      await act(async () => {
+        tree = create(
+          <RestTimerModal
+            visible
+            onClose={() => {}}
+            initialDurationMs={60_000}
+            onDurationChange={onDurationChange}
+          />
+        );
+      });
+
+      await flick(tree, 'rest-minutes-wheel', 1); // 1:00 -> 2:00
+      expect(onDurationChange).toHaveBeenLastCalledWith(120_000);
+
+      await flick(tree, 'rest-seconds-wheel', 30); // -> 2:30
+      expect(onDurationChange).toHaveBeenLastCalledWith(150_000);
+
+      await act(async () => tree.unmount());
+    });
+
+    it('reports the picked duration when the timer is started', async () => {
+      const onDurationChange = jest.fn();
+      let tree!: ReactTestRenderer;
+      await act(async () => {
+        tree = create(
+          <RestTimerModal
+            visible
+            onClose={() => {}}
+            initialDurationMs={60_000}
+            onDurationChange={onDurationChange}
+          />
+        );
+      });
+
+      await flick(tree, 'rest-minutes-wheel', 1);
+      await tap(tree, 'Start rest timer');
+
+      expect(onDurationChange).toHaveBeenLastCalledWith(120_000);
+      expect(onDurationChange).toHaveBeenCalledTimes(2); // pick + start
+
+      await act(async () => tree.unmount());
+    });
+
+    it('keeps a running countdown when the parent updates the session duration', async () => {
+      // A frozen clock keeps the running countdown from ticking down mid-test.
+      jest.spyOn(Date, 'now').mockReturnValue(1_700_000_000_000);
+      let tree!: ReactTestRenderer;
+      await act(async () => {
+        tree = create(<RestTimerModal visible onClose={() => {}} initialDurationMs={60_000} />);
+      });
+
+      await flick(tree, 'rest-minutes-wheel', 1); // 1:00 -> 2:00
+      await tap(tree, 'Start rest timer');
+
+      // The parent mirrors the reported pick back down as a new initial value:
+      // that must not restart the countdown or unlock the wheels.
+      await act(async () => {
+        tree.update(<RestTimerModal visible onClose={() => {}} initialDurationMs={120_000} />);
+      });
+
+      expect(countdownText(tree)).toBe('2:00');
+      expect(isLocked(tree, 'rest-minutes-wheel')).toBe(true);
+
+      await act(async () => tree.unmount());
+    });
+
     it('repeats each range so the wheel can be spun forever', async () => {
       const tree = await renderSheet();
       const seconds = wheel(tree, 'rest-seconds-wheel').props.data as number[];

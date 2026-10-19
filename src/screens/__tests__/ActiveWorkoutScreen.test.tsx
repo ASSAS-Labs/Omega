@@ -9,15 +9,19 @@
  * without a navigator.
  */
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import type { ReactTestInstance } from 'react-test-renderer';
 import ActiveWorkoutScreen, { FOOTER_CLEARANCE } from '../ActiveWorkoutScreen';
+import RestTimerModal from '../../components/RestTimerModal';
 import { SET_COLUMN_WIDTHS } from '../../theme/layout';
 import * as db from '../../services/database';
 import {
   clearWorkoutDraft,
   getWorkoutDraft,
+  saveWorkoutDraft,
 } from '../../services/workoutDraftService';
+import { useActiveWorkoutStore } from '../../store/useActiveWorkoutStore';
 
 /** Stand-in for the parent tab navigator, so its options can be asserted. */
 const mockParentNavigation = {
@@ -32,14 +36,24 @@ const mockNavigation = {
   reset: jest.fn(),
 };
 
-const mockRoute = {
+const mockRoute: {
+  key: string;
+  name: string;
+  params: {
+    date: string;
+    day: 'Monday';
+    dayName: string;
+    mode: 'logging' | 'template';
+    resume?: string;
+  };
+} = {
   key: 'active-workout-test',
   name: 'ActiveWorkout',
   params: {
     date: '2026-08-31',
-    day: 'Monday' as const,
+    day: 'Monday',
     dayName: 'Chest',
-    mode: 'logging' as 'logging' | 'template',
+    mode: 'logging',
   },
 };
 
@@ -294,6 +308,7 @@ describe('ActiveWorkoutScreen', () => {
       'DELETE FROM workout_sets; DELETE FROM day_templates; DELETE FROM workout_logs; DELETE FROM exercises;'
     );
     await clearWorkoutDraft();
+    useActiveWorkoutStore.getState().resetActiveWorkoutSession();
     // SafeAreaView's deprecation notice from react-native adds noise only
     jest.spyOn(console, 'warn').mockImplementation(() => {});
   });
@@ -476,20 +491,62 @@ describe('ActiveWorkoutScreen', () => {
     });
   });
 
-  describe('tab bar', () => {
-    it('hides the tab bar while logging and restores it on exit', async () => {
+  describe('navigation ownership', () => {
+    it('does not reach into a parent tab bar — it owns a root-stack screen', async () => {
       await seedSession(false);
 
+      await renderWorkout();
+
+      // This screen is presented above the tab navigator, so it never hides or
+      // restores a parent tab bar (the old stack-based flow had to).
+      expect(mockParentNavigation.setOptions).not.toHaveBeenCalledWith({
+        tabBarStyle: expect.anything(),
+      });
+      // Its own header actions are still installed
+      expect(mockNavigation.setOptions).toHaveBeenCalled();
+    });
+
+    it('finishes into a clean root stack and resets the in-memory session', async () => {
+      await seedSession(false);
       const tree = await renderWorkout();
 
-      expect(mockParentNavigation.setOptions).toHaveBeenCalledWith({
-        tabBarStyle: { display: 'none' },
+      await typeWeight(tree, 0, '100');
+      const reps = tree.root
+        .findAllByType(TextInput)
+        .find((node) => node.props.keyboardType === 'number-pad');
+      expect(reps).toBeDefined();
+      await act(async () => {
+        reps!.props.onChangeText('8');
       });
 
-      await act(async () => tree.unmount());
-      expect(mockParentNavigation.setOptions).toHaveBeenCalledWith({
-        tabBarStyle: expect.objectContaining({ display: 'flex' }),
+      expect(useActiveWorkoutStore.getState().session?.logId).toEqual(expect.any(String));
+
+      const finish = tree.root
+        .findAll((node) => typeof node.props?.onPress === 'function')
+        .find((node) => collectStrings(node.props.children).includes('Finish & Save Workout'));
+      expect(finish).toBeDefined();
+      await act(async () => {
+        await finish!.props.onPress();
       });
+
+      // Never a goBack(): the stack is resolved to the tab root explicitly.
+      expect(mockNavigation.reset).toHaveBeenCalledWith({
+        index: 0,
+        routes: [{ name: 'Tabs', params: { screen: 'Dashboard' } }],
+      });
+      expect(await getWorkoutDraft()).toBeNull();
+      expect(useActiveWorkoutStore.getState().session).toBeNull();
+    });
+
+    it('clears the in-memory session when the screen is left without finishing', async () => {
+      await seedSession(false);
+      const tree = await renderWorkout();
+
+      expect(useActiveWorkoutStore.getState().session).not.toBeNull();
+
+      await act(async () => tree.unmount());
+
+      expect(useActiveWorkoutStore.getState().session).toBeNull();
     });
   });
 
@@ -651,6 +708,86 @@ describe('ActiveWorkoutScreen', () => {
       await db.updateDayTemplateOrder('Monday', [fly.id, bench.id]);
       const reordered = await renderWorkout();
       expect(namesInRenderOrder(reordered, [bench.name, fly.name])).toEqual([fly.name, bench.name]);
+    });
+  });
+
+  describe('session rest duration', () => {
+    afterEach(async () => {
+      await AsyncStorage.removeItem('@default_rest_timer');
+      mockRoute.params = { ...mockRoute.params, resume: undefined };
+    });
+
+    /** The rest timer sheet's live props, as the logging screen passes them. */
+    function timerProps(tree: ReactTestRenderer) {
+      const [timer] = tree.root.findAllByType(RestTimerModal);
+      if (!timer) throw new Error('Rest timer sheet is not rendered');
+      return timer.props as {
+        initialDurationMs?: number;
+        onDurationChange?: (ms: number) => void;
+      };
+    }
+
+    it('opens on the settings default and keeps a picked duration for the session', async () => {
+      await AsyncStorage.setItem('@default_rest_timer', '60000');
+      await seedSession(false);
+      const tree = await renderWorkout();
+
+      expect(timerProps(tree).initialDurationMs).toBe(60_000);
+
+      await act(async () => {
+        timerProps(tree).onDurationChange?.(120_000);
+      });
+
+      // The pick feeds the sheet's next opening…
+      expect(timerProps(tree).initialDurationMs).toBe(120_000);
+      // …and never touches the global setting.
+      expect(await AsyncStorage.getItem('@default_rest_timer')).toBe('60000');
+    });
+
+    it('writes the session pick to the recovery draft', async () => {
+      await AsyncStorage.setItem('@default_rest_timer', '60000');
+      await seedSession(false);
+      const tree = await renderWorkout();
+
+      await typeWeight(tree, 0, '100');
+      await act(async () => {
+        timerProps(tree).onDurationChange?.(120_000);
+      });
+      // "Done" in the set manager is an explicit save point for the draft.
+      await tap(tree, 'Remove sets from Bench Press');
+      await tap(tree, 'Done removing sets from Bench Press');
+
+      const draft = await getWorkoutDraft();
+      expect(draft?.lastRestDurationSeconds).toBe(120);
+    });
+
+    it('restores the session pick when resuming, and drops it for a fresh session', async () => {
+      await AsyncStorage.setItem('@default_rest_timer', '60000');
+      const exercise = await db.addExercise('Bench Press', 'Chest');
+      await db.saveDayTemplate('Monday', [{ exerciseId: exercise.id, targetSets: 3 }]);
+      await saveWorkoutDraft({
+        date: '2026-08-31',
+        day: 'Monday',
+        dayName: 'Chest',
+        startedAt: Date.now(),
+        exerciseLogs: [
+          {
+            exercise: { id: exercise.id, name: exercise.name, muscleGroup: 'Chest' },
+            previousSets: [],
+            sets: [{ setNumber: 1, weight: '100', reps: '8' }],
+          },
+        ],
+        lastRestDurationSeconds: 120,
+      });
+
+      mockRoute.params = { ...mockRoute.params, resume: '1' };
+      const resumed = await renderWorkout();
+      expect(timerProps(resumed).initialDurationMs).toBe(120_000);
+
+      // A brand-new session reads the global default again.
+      mockRoute.params = { ...mockRoute.params, resume: undefined };
+      const fresh = await renderWorkout();
+      expect(timerProps(fresh).initialDurationMs).toBe(60_000);
     });
   });
 });

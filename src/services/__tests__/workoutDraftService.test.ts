@@ -90,6 +90,29 @@ describe('workoutDraftService', () => {
       expect(stored.exerciseLogs[0].sets[0]).toEqual({ setNumber: 1, weight: '82.5', reps: '8' });
     });
 
+    it('round-trips the session rest duration', async () => {
+      const service = loadService();
+
+      await service.saveWorkoutDraft(draftInput({ lastRestDurationSeconds: 120 }));
+
+      expect((await service.getWorkoutDraft())?.lastRestDurationSeconds).toBe(120);
+    });
+
+    it('ignores an invalid stored session rest duration', async () => {
+      const service = loadService();
+      const store = storage().__getStore();
+      const stored = {
+        ...draftInput(),
+        updatedAt: Date.now(),
+        lastRestDurationSeconds: -5,
+      };
+      store.set(DRAFT_KEY, JSON.stringify(stored));
+
+      const draft = await service.getWorkoutDraft();
+      expect(draft).not.toBeNull();
+      expect(draft?.lastRestDurationSeconds).toBeUndefined();
+    });
+
     it('stamps the stored payload with a version and the write time', async () => {
       const service = loadService();
       const before = Date.now();

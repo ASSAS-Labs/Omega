@@ -39,6 +39,12 @@ export interface WorkoutDraft {
   dayName?: string;
   startedAt: number; // epoch ms
   exerciseLogs: DraftExercise[];
+  /**
+   * Rest-timer duration the user last picked in this session (whole seconds).
+   * Optional so drafts written by older builds still hydrate; the screen falls
+   * back to the global default when it is absent.
+   */
+  lastRestDurationSeconds?: number;
 }
 
 /**
@@ -177,6 +183,12 @@ function parseDraft(raw: unknown): WorkoutDraft | null {
     dayName: typeof raw.dayName === 'string' ? raw.dayName : undefined,
     startedAt: raw.startedAt,
     exerciseLogs,
+    lastRestDurationSeconds:
+      typeof raw.lastRestDurationSeconds === 'number' &&
+      Number.isFinite(raw.lastRestDurationSeconds) &&
+      raw.lastRestDurationSeconds > 0
+        ? raw.lastRestDurationSeconds
+        : undefined,
   };
 }
 

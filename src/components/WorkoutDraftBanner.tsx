@@ -8,6 +8,7 @@ import {
   clearWorkoutDraft,
   getWorkoutDraft,
 } from '../services/workoutDraftService';
+import { useActiveWorkoutStore } from '../store/useActiveWorkoutStore';
 
 interface WorkoutDraftBannerProps {
   onResume: (draft: WorkoutDraft) => void;
@@ -37,7 +38,12 @@ export default function WorkoutDraftBanner({ onResume }: WorkoutDraftBannerProps
   );
 
   const handleDiscard = async () => {
+    // Discard is a full teardown: purge the serialized draft AND return the
+    // in-memory session bookkeeping to its freshly-installed state. Clearing
+    // only storage used to leave a mounted logger (or a stale session record)
+    // holding the discarded inputs, which then reappeared on "Start Workout".
     await clearWorkoutDraft();
+    useActiveWorkoutStore.getState().resetActiveWorkoutSession();
     setDraft(null);
   };
 

@@ -9,11 +9,12 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import { StackNavigationProp } from '@react-navigation/stack';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { COLORS, SPACING, RADIUS } from '../theme/colors';
 import { useAppStore } from '../store/useAppStore';
 import WorkoutDraftBanner from '../components/WorkoutDraftBanner';
-import { DayOfWeek, WorkoutStackParamList } from '../types';
+import { DayOfWeek, RootStackParamList, RootTabParamList } from '../types';
 import { DAYS_OF_WEEK, getTodayDayOfWeek } from '../utils/dateUtils';
 import * as db from '../services/database';
 
@@ -27,8 +28,16 @@ const EMPTY_COUNTS: Record<DayOfWeek, number> = {
   Sunday: 0,
 };
 
+/**
+ * INVARIANT: this is the ROOT screen of the "Workout" tab.
+ *
+ * It only browses the week's routines and offers "Start Workout"; it never
+ * mounts active workout inputs directly into its tree. The live logger is a
+ * separate root-stack screen, so this tab has no back button and cannot retain
+ * a finished, discarded or crashed session in its history.
+ */
 export default function WorkoutDaysScreen() {
-  const navigation = useNavigation<StackNavigationProp<WorkoutStackParamList>>();
+  const navigation = useNavigation<BottomTabNavigationProp<RootTabParamList, 'Workout'>>();
   const { weeklySplit, muscleGroups, allExercises } = useAppStore();
   const todayDayOfWeek = getTodayDayOfWeek();
   const [templateCounts, setTemplateCounts] = useState<Record<DayOfWeek, number>>(EMPTY_COUNTS);
@@ -71,23 +80,34 @@ export default function WorkoutDaysScreen() {
     [weeklySplit]
   );
 
+  /** Opens the ephemeral workout flow on the ROOT stack, above the tabs. */
+  const openActiveWorkout = useCallback(
+    (params: RootStackParamList['ActiveWorkout']) => {
+      navigation.getParent<NativeStackNavigationProp<RootStackParamList>>()?.push(
+        'ActiveWorkout',
+        params
+      );
+    },
+    [navigation]
+  );
+
   const handleSelectDay = useCallback(
     (day: DayOfWeek) => {
       const { mgNames } = dayInfo[day];
       const today = new Date().toISOString().split('T')[0];
-      navigation.navigate('ActiveWorkout', {
+      openActiveWorkout({
         date: today,
         day,
         dayName: mgNames.length > 0 ? mgNames.join(' & ') : 'Rest Day',
         mode: 'template',
       });
     },
-    [dayInfo, navigation]
+    [dayInfo, openActiveWorkout]
   );
 
   const handleResumeDraft = useCallback(
     (draft: { date: string; day: DayOfWeek; dayName?: string }) => {
-      navigation.navigate('ActiveWorkout', {
+      openActiveWorkout({
         date: draft.date,
         day: draft.day,
         dayName: draft.dayName,
@@ -95,7 +115,7 @@ export default function WorkoutDaysScreen() {
         resume: '1',
       });
     },
-    [navigation]
+    [openActiveWorkout]
   );
 
   return (

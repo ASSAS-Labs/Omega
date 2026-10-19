@@ -45,6 +45,18 @@ import { useTimeSync } from '../hooks/useTimeSync';
 interface RestTimerModalProps {
   visible: boolean;
   onClose: () => void;
+  /**
+   * Rest duration (ms) chosen earlier in this workout session. When provided,
+   * the sheet opens on it instead of re-reading the saved global default, so a
+   * duration the user picked for an earlier set survives until the session ends.
+   */
+  initialDurationMs?: number;
+  /**
+   * Reports every duration the user commits for this session — by turning a
+   * wheel or by starting the timer. The caller keeps it scoped to the active
+   * workout; nothing here writes the global preference.
+   */
+  onDurationChange?: (durationMs: number) => void;
 }
 
 // Interactive picker bounds: 0-60 minutes, 0-59 seconds
@@ -326,7 +338,12 @@ const WheelColumn = memo(function WheelColumn({
   );
 });
 
-export default function RestTimerModal({ visible, onClose }: RestTimerModalProps) {
+export default function RestTimerModal({
+  visible,
+  onClose,
+  initialDurationMs,
+  onDurationChange,
+}: RestTimerModalProps) {
   const [durationMs, setDurationMs] = useState(60000);
   const [remainingMs, setRemainingMs] = useState(60000);
   const [running, setRunning] = useState(false);
@@ -377,18 +394,48 @@ export default function RestTimerModal({ visible, onClose }: RestTimerModalProps
     };
   });
 
-  // Load the user's preferred default duration when the modal opens
+  // Latest session duration, read by the open effect below. It is mirrored in a
+  // ref (rather than listed as an effect dependency) because the parent also
+  // updates this prop in response to `onDurationChange`: re-running the effect
+  // on every wheel pick would reset the countdown the user just started.
+  const initialDurationMsRef = useRef(initialDurationMs);
   useEffect(() => {
-    if (visible) {
-      getDefaultRestDurationMs().then((ms) => {
-        // Keep the picker, countdown, and scheduled alert in agreement even if
-        // a preference was stored outside the picker's range
-        const clamped = Math.min(ms, (MAX_PICKER_MINUTES * 60 + MAX_PICKER_SECONDS) * 1000);
-        setDurationMs(clamped);
-        setRemainingMs(clamped);
-        setRunning(false);
-      });
+    initialDurationMsRef.current = initialDurationMs;
+  }, [initialDurationMs]);
+
+  // Seed the picker and countdown on open: the session's current duration when
+  // the caller supplies one, otherwise the user's saved global preference.
+  useEffect(() => {
+    if (!visible) return;
+
+    const applyDuration = (ms: number) => {
+      // Keep the picker, countdown, and scheduled alert in agreement even if a
+      // duration was stored outside the picker's range
+      const clamped = Math.min(ms, (MAX_PICKER_MINUTES * 60 + MAX_PICKER_SECONDS) * 1000);
+      setDurationMs(clamped);
+      setRemainingMs(clamped);
+      setRunning(false);
+    };
+
+    const sessionDuration = initialDurationMsRef.current;
+    if (typeof sessionDuration === 'number' && Number.isFinite(sessionDuration)) {
+      applyDuration(sessionDuration);
+      return;
     }
+
+    let cancelled = false;
+    getDefaultRestDurationMs().then((ms) => {
+      if (cancelled) return;
+      // The session value may have arrived while the preference was loading —
+      // and the user may already have picked a duration on the wheels.
+      const latest = initialDurationMsRef.current;
+      applyDuration(
+        typeof latest === 'number' && Number.isFinite(latest) ? latest : ms
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [visible]);
 
   // Foreground re-sync: update UI when returning from background
@@ -432,7 +479,9 @@ export default function RestTimerModal({ visible, onClose }: RestTimerModalProps
   };
 
   const handleStart = () => {
-    // The picker defines the exact target duration for this set
+    // The picker defines the exact target duration for this set. Starting also
+    // commits the picked duration as the rest of this session's default.
+    onDurationChange?.(durationMs);
     const target = Math.max(1, Math.round(remainingMs / 1000));
     const end = Date.now() + target * 1000;
     endRef.current = end;
@@ -470,8 +519,9 @@ export default function RestTimerModal({ visible, onClose }: RestTimerModalProps
       const next = (nextMinutes * 60 + seconds) * 1000;
       setDurationMs(next);
       setRemainingMs(next);
+      onDurationChange?.(next);
     },
-    [seconds]
+    [onDurationChange, seconds]
   );
 
   const handlePickSeconds = useCallback(
@@ -479,8 +529,9 @@ export default function RestTimerModal({ visible, onClose }: RestTimerModalProps
       const next = (minutes * 60 + nextSeconds) * 1000;
       setDurationMs(next);
       setRemainingMs(next);
+      onDurationChange?.(next);
     },
-    [minutes]
+    [minutes, onDurationChange]
   );
 
   const canStart = remainingMs > 0;

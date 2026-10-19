@@ -3,20 +3,11 @@ import type { NavigatorScreenParams } from '@react-navigation/native';
 export type DayOfWeek = 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday';
 
 // Navigation param lists (shared between App.tsx and screen components)
-export type WorkoutStackParamList = {
-  WorkoutDays: undefined;
-  ActiveWorkout: {
-    date: string;
-    day: DayOfWeek;
-    dayName?: string;
-    mode?: 'template' | 'logging';
-    resume?: '1';
-  };
-};
-
 export type RootTabParamList = {
   Dashboard: undefined;
-  Workout: NavigatorScreenParams<WorkoutStackParamList> | undefined;
+  // The Workout tab is a single root screen (the days/routine hub), never a
+  // stack that can retain a live workout session.
+  Workout: undefined;
   Exercises: undefined;
   Analytics: undefined;
   Settings: undefined;
@@ -24,6 +15,18 @@ export type RootTabParamList = {
 
 export type RootStackParamList = {
   Tabs: NavigatorScreenParams<RootTabParamList> | undefined;
+  /**
+   * Ephemeral full-screen workout flow. It lives on the ROOT stack, above the
+   * tab navigator, so a live session can never become a tab's history entry and
+   * can never be navigated back to after it has been finished or discarded.
+   */
+  ActiveWorkout: {
+    date: string;
+    day: DayOfWeek;
+    dayName?: string;
+    mode?: 'template' | 'logging';
+    resume?: '1';
+  };
   SplitSetup: undefined;
 };
 

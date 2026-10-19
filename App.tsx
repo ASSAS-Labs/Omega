@@ -11,7 +11,6 @@ import {
   createBottomTabNavigator,
   BottomTabScreenProps,
 } from '@react-navigation/bottom-tabs';
-import { createStackNavigator } from '@react-navigation/stack';
 import {
   createNativeStackNavigator,
   NativeStackNavigationProp,
@@ -35,18 +34,13 @@ import {
   WeightUnit,
 } from './src/services/weightUnitPrefs';
 import WeightUnitPromptModal from './src/components/WeightUnitPromptModal';
-import {
-  DayOfWeek,
-  RootStackParamList,
-  RootTabParamList,
-  WorkoutStackParamList,
-} from './src/types';
+import { DayOfWeek, RootStackParamList, RootTabParamList } from './src/types';
 import WalkthroughOverlay from './src/components/WalkthroughOverlay';
 
 const Tab = createBottomTabNavigator<RootTabParamList>();
-const WorkoutStack = createStackNavigator<WorkoutStackParamList>();
 const RootStack = createNativeStackNavigator<RootStackParamList>();
-const navigationRef = createNavigationContainerRef<RootStackParamList>();
+/** Root navigation handle. Exported so the navigation contract is testable. */
+export const navigationRef = createNavigationContainerRef<RootStackParamList>();
 
 // Minimalist dark theme applied to the whole navigation tree
 const AppTheme: Theme = {
@@ -63,36 +57,6 @@ const AppTheme: Theme = {
   },
 };
 
-// ---------------- Workout Tab (Stack: Days Overview -> Active Workout) ----------------
-
-function WorkoutStackNavigator() {
-  return (
-    <WorkoutStack.Navigator
-      initialRouteName="WorkoutDays"
-      screenOptions={{
-        headerStyle: { backgroundColor: COLORS.bgPrimary },
-        headerTintColor: COLORS.textPrimary,
-        headerTitleStyle: { fontWeight: '700' },
-        headerShadowVisible: false,
-        cardStyle: { backgroundColor: COLORS.bgPrimary },
-      }}
-    >
-      <WorkoutStack.Screen
-        name="WorkoutDays"
-        component={WorkoutDaysScreen}
-        options={{ title: 'Select Day' }}
-      />
-      <WorkoutStack.Screen
-        name="ActiveWorkout"
-        component={ActiveWorkoutScreen}
-        options={({ route }) => ({
-          title: route.params?.dayName || 'Workout',
-        })}
-      />
-    </WorkoutStack.Navigator>
-  );
-}
-
 // ---------------- Dashboard Tab ----------------
 
 function DashboardTab({ navigation }: BottomTabScreenProps<RootTabParamList, 'Dashboard'>) {
@@ -108,19 +72,28 @@ function DashboardTab({ navigation }: BottomTabScreenProps<RootTabParamList, 'Da
             .map((mg) => mg.name)
             .join(' & ') || undefined;
 
-        // Nested navigation: switch to the Workout tab and push ActiveWorkout
-        // in live logging mode (weight/reps entry from the Dashboard)
-        navigation.navigate('Workout', {
-          screen: 'ActiveWorkout',
-          params: { date: dateStr, day: dayOfWeek, dayName, mode: 'logging' },
-        });
+        // Start a brand-new session on the ROOT stack. `push` (rather than
+        // `navigate`) guarantees a fresh mount: no previously mounted logger
+        // can be reused, so no set values can survive from an earlier session.
+        navigation
+          .getParent<NativeStackNavigationProp<RootStackParamList>>()
+          ?.push('ActiveWorkout', {
+            date: dateStr,
+            day: dayOfWeek,
+            dayName,
+            mode: 'logging',
+          });
       }}
       onResumeWorkout={(dateStr: string, dayOfWeek: DayOfWeek) => {
         // Resume an unfinalized draft with its exact state
-        navigation.navigate('Workout', {
-          screen: 'ActiveWorkout',
-          params: { date: dateStr, day: dayOfWeek, mode: 'logging', resume: '1' },
-        });
+        navigation
+          .getParent<NativeStackNavigationProp<RootStackParamList>>()
+          ?.push('ActiveWorkout', {
+            date: dateStr,
+            day: dayOfWeek,
+            mode: 'logging',
+            resume: '1',
+          });
       }}
       onNavigateSplitSetup={() => {
         // Push the Split Configuration screen on the root stack (from Settings hub)
@@ -167,24 +140,24 @@ function AppNavigator() {
           ),
         }}
       />
+      {/*
+       * INVARIANT: the Workout tab is a root hub screen, not a stack.
+       * It only lists the week's routines and offers "Start Workout"; the live
+       * session is a root-stack screen above the tabs (see RootNavigator). A tab
+       * screen has no back button and keeps no history, so a discarded or
+       * killed session can never be reached from here.
+       */}
       <Tab.Screen
         name="Workout"
-        component={WorkoutStackNavigator}
-        // The bottom "Workout" tab is the routine/days hub: it always lands on
-        // WorkoutDaysScreen. A lingering ActiveWorkout route (a session in
-        // progress, or an unfinalized draft) must never hijack the tab — the
-        // only ways into the live logger are "Start Workout" and the
-        // WorkoutDraftBanner's "Resume".
-        listeners={({ navigation }) => ({
-          tabPress: (event) => {
-            event.preventDefault();
-            // `pop` reuses the stack's existing WorkoutDays route (and leaves it
-            // alone when it is already on top) instead of pushing a second copy.
-            navigation.navigate('Workout', { screen: 'WorkoutDays', pop: true });
-          },
-        })}
+        component={WorkoutDaysScreen}
         options={{
-          title: 'Workout',
+          // Header title vs. bottom tab label: the tab is the workout hub, the
+          // screen it opens is the day picker.
+          title: 'Select Day',
+          tabBarLabel: 'Workout',
+          // The days hub is the only tab with its own header; the other tabs
+          // render their titles inside their screens.
+          headerShown: true,
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
               name={focused ? 'barbell' : 'barbell-outline'}
@@ -254,6 +227,19 @@ function RootNavigator() {
       }}
     >
       <RootStack.Screen name="Tabs" component={AppNavigator} options={{ headerShown: false }} />
+      {/*
+       * The live workout is full-screen above the tab navigator. Owning it here
+       * is what lets Finish/Discard tear it down with a root reset: the tabs
+       * (including "Workout") never hold it in their history, and its header is
+       * the only place a back control exists.
+       */}
+      <RootStack.Screen
+        name="ActiveWorkout"
+        component={ActiveWorkoutScreen}
+        options={({ route }) => ({
+          title: route.params?.dayName || 'Workout',
+        })}
+      />
       <RootStack.Screen
         name="SplitSetup"
         component={SplitSetupScreen}
