@@ -16,6 +16,7 @@
   <p>
     <a href="https://omega-assas4.vercel.app"><strong>Explore Product Website</strong></a> &nbsp;&bull;&nbsp;
     <a href="https://github.com/ASSAS-Labs/Omega/releases/latest/download/app-release.apk"><strong>Download Latest APK</strong></a> &nbsp;&bull;&nbsp;
+    <a href="#mobile-application-interface-showcase"><strong>Interface Showcase</strong></a> &nbsp;&bull;&nbsp;
     <a href="#architecture--tech-stack"><strong>Architecture</strong></a> &nbsp;&bull;&nbsp;
     <a href="#quickstart--local-development"><strong>Quickstart</strong></a> &nbsp;&bull;&nbsp;
     <a href="#test-verification"><strong>Test Verification</strong></a> &nbsp;&bull;&nbsp;
@@ -37,20 +38,98 @@
 
 An interactive web overview is available at [omega-assas4.vercel.app](https://omega-assas4.vercel.app).
 
-<details>
-<summary><strong>View Mobile Application Screenshots</strong></summary>
+---
 
-<br />
+## Mobile Application Interface Showcase
 
-| 01 · Dashboard & Streak Matrix | 02 · Active Workout Builder | 03 · Movement Catalog |
-|:---:|:---:|:---:|
-| <img src="assets/screenshots/01_dashboard.png" width="220" style="border-radius: 16px;" alt="Dashboard" /> | <img src="assets/screenshots/02_workout.png" width="220" style="border-radius: 16px;" alt="Workout" /> | <img src="assets/screenshots/03_exercises.png" width="220" style="border-radius: 16px;" alt="Exercises" /> |
+<table>
+  <thead>
+    <tr>
+      <th width="50%" align="center"><strong>01 · Daily Discipline &amp; Consistency</strong></th>
+      <th width="50%" align="center"><strong>02 · Active Workout Builder</strong></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td align="center">
+        <br />
+        <img src="assets/screenshots/01_dashboard.png" width="300" style="border-radius: 22px;" alt="Dashboard Screen" />
+        <br /><br />
+        <strong>Monday-First Compliance Matrix</strong>
+        <p>Full-month adherence calendar with per-day status markers (Logged, Missed, Rest, Upcoming). One-tap quick launch into today's planned routine with active streak counter.</p>
+      </td>
+      <td align="center">
+        <br />
+        <img src="assets/screenshots/02_workout.png" width="300" style="border-radius: 22px;" alt="Workout Screen" />
+        <br /><br />
+        <strong>Routine Split &amp; Day Selection</strong>
+        <p>Organized daily movement allocations with target muscle group breakdowns. Real-time set counting, benchmark lookups, and drag-to-reorder exercise sequencing.</p>
+      </td>
+    </tr>
+  </tbody>
+</table>
 
-| 04 · Progression Analytics | 05 · Routine Split Setup | 06 · Settings & Export |
-|:---:|:---:|:---:|
-| <img src="assets/screenshots/04_analytics.png" width="220" style="border-radius: 16px;" alt="Analytics" /> | <img src="assets/screenshots/06_split.png" width="220" style="border-radius: 16px;" alt="Split" /> | <img src="assets/screenshots/05_settings.png" width="220" style="border-radius: 16px;" alt="Settings" /> |
+<table>
+  <thead>
+    <tr>
+      <th width="50%" align="center"><strong>03 · Movement Library</strong></th>
+      <th width="50%" align="center"><strong>04 · Progression Analytics</strong></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td align="center">
+        <br />
+        <img src="assets/screenshots/03_exercises.png" width="300" style="border-radius: 22px;" alt="Exercises Screen" />
+        <br /><br />
+        <strong>Muscle-Partitioned Catalog</strong>
+        <p>Searchable movement pool built with FlashList 2.0 recycled cells. Instant filtering across Chest, Back, Legs, Shoulders, and Arms, plus full custom exercise creation.</p>
+      </td>
+      <td align="center">
+        <br />
+        <img src="assets/screenshots/04_analytics.png" width="300" style="border-radius: 22px;" alt="Analytics Screen" />
+        <br /><br />
+        <strong>Estimated 1RM Progression &amp; Headroom</strong>
+        <p>Dynamic Epley strength curves with automatic chart headroom bounds. Session, weekly, and monthly aggregation toggles with peak strength benchmarks.</p>
+      </td>
+    </tr>
+  </tbody>
+</table>
 
-</details>
+<table>
+  <thead>
+    <tr>
+      <th width="33.3%" align="center"><strong>05 · Split Architecture</strong></th>
+      <th width="33.3%" align="center"><strong>06 · Streak Leaderboard</strong></th>
+      <th width="33.3%" align="center"><strong>07 · Data Portability</strong></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td align="center">
+        <br />
+        <img src="assets/screenshots/06_split.png" width="220" style="border-radius: 20px;" alt="Routine Split Screen" />
+        <br /><br />
+        <strong>7-Day Target Matrix</strong>
+        <p>Configure muscle groups per weekday with live badges and routine sync.</p>
+      </td>
+      <td align="center">
+        <br />
+        <img src="assets/screenshots/07_streaks.png" width="220" style="border-radius: 20px;" alt="Streak History Screen" />
+        <br /><br />
+        <strong>All-Time Consistency</strong>
+        <p>Top 5 unbroken training streaks with split-aware rest day persistence rules.</p>
+      </td>
+      <td align="center">
+        <br />
+        <img src="assets/screenshots/05_settings.png" width="220" style="border-radius: 20px;" alt="Settings Screen" />
+        <br /><br />
+        <strong>Local Database Export</strong>
+        <p>KG/LBS unit toggle, rest timer presets, and atomic JSON database export/import.</p>
+      </td>
+    </tr>
+  </tbody>
+</table>
 
 ---
 
@@ -132,8 +211,8 @@ npm test -- --ci --watchAll=false    # all suites green
 | **SQLite Schema & ACID** | 3 | 81 | Migrations (`user_version`), indexes, soft-delete archival & re-activation, idempotent saves via session token, blank set stripping, multi-session logs, rollback on error, backup round-trips, fixtures |
 | **Crash Recovery Drafts** | 1 | 19 | Draft serialization, session token persistence, deep payload validation, expiry, generation-guarded discard of trailing debounced saves |
 | **Background Timers** | 1 | 16 | Android notification channels, exact-alarm fallback |
-| **State & UI Integration** | 7 | 83 | Screen mount lifecycles, store reactivity, interaction flows, modal lifecycles |
-| **Total** | **16** | **313** | **0 failures** |
+| **State & UI Integration** | 8 | 100 | Screen mount lifecycles, store reactivity & session isolation, interaction flows, modal lifecycles |
+| **Total** | **17** | **330** | **0 failures** |
 
 > Per-suite scope — including what each database test asserts about the schema and migration policy — is in [docs/architecture.md](docs/architecture.md). Run the commands above for the live counts.
 
